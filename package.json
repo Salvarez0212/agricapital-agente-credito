@@ -22,7 +22,8 @@
     "db:migrate": "npm run db:migrate -w backend",
     "db:seed": "npm run db:seed -w backend",
     "db:reset": "npm run db:reset -w backend",
-    "db:studio": "npm run db:studio -w backend"
+    "db:studio": "npm run db:studio -w backend",
+    "chat": "npm run chat -w backend --"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
