@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { antiguos, clientesDemo, preferenciales } from '../prisma/seed-data.js';
+import { antiguos, clientesDemo, preferenciales } from '../../prisma/seed-data.js';
 
 const todos = [...preferenciales, ...antiguos, ...clientesDemo('+573009999999')];
 

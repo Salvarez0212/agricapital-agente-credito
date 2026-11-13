@@ -1,5 +1,7 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
+import { ZodError } from 'zod';
 import { AppError } from '../lib/app-error.js';
+import { logger } from '../lib/logger.js';
 
 /** 404 para cualquier ruta no registrada. */
 export const notFoundHandler: RequestHandler = (req, _res, next) => {
@@ -8,13 +10,28 @@ export const notFoundHandler: RequestHandler = (req, _res, next) => {
 
 /**
  * Middleware central de errores: toda respuesta de error tiene la forma
- * { error: { code, message, details? } }. Los errores inesperados se
- * responden como 500 sin filtrar el stack al cliente.
+ * { error: { code, message, details? } }. Los errores inesperados se registran
+ * en el log y se responden como 500 sin filtrar el stack al cliente.
  */
-export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   if (err instanceof AppError) {
     res.status(err.status).json({
       error: { code: err.code, message: err.message, details: err.details },
+    });
+    return;
+  }
+
+  // Errores de validación de Zod → 400 con el detalle por campo
+  if (err instanceof ZodError) {
+    res.status(400).json({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Los datos enviados no son válidos',
+        details: err.issues.map((issue) => ({
+          campo: issue.path.join('.') || null,
+          mensaje: issue.message,
+        })),
+      },
     });
     return;
   }
@@ -27,7 +44,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
-  res.locals.unexpectedError = err;
+  logger.error({ err, method: req.method, path: req.path }, 'Error no controlado');
   res
     .status(500)
     .json({ error: { code: 'INTERNAL_ERROR', message: 'Error interno del servidor' } });
