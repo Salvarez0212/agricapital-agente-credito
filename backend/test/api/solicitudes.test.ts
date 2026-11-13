@@ -1,0 +1,143 @@
+import request from 'supertest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createApp } from '../../src/app.js';
+import { crearCliente, limpiarBd, solicitudValida } from '../helpers/db.js';
+
+const app = createApp();
+
+function crear(body: object) {
+  return request(app).post('/api/solicitudes').send(body);
+}
+
+describe('API de solicitudes', () => {
+  beforeEach(limpiarBd);
+
+  describe('POST /api/solicitudes', () => {
+    it('crea la solicitud de un cliente nuevo EN_REVISION y normaliza el teléfono', async () => {
+      const res = await crear(solicitudValida);
+
+      expect(res.status).toBe(201);
+      expect(res.headers.location).toBe(`/api/solicitudes/${res.body.data.id}`);
+      expect(res.body.data).toMatchObject({
+        tipoCliente: 'NUEVO',
+        estado: 'EN_REVISION',
+        telefono: '+573000000301',
+        requiereVerificacion: false,
+      });
+      expect(res.body.data.consentimientoDatosAt).toBeTruthy();
+    });
+
+    it('clasifica según la BD: un preferencial queda como PREFERENCIAL', async () => {
+      await crearCliente({
+        cedula: '1010101010',
+        telefono: '+573000000101',
+        cupoPreaprobado: 5_000_000,
+      });
+
+      const res = await crear({ ...solicitudValida, cedula: '1010101010', telefono: '3000000101' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data).toMatchObject({
+        tipoCliente: 'PREFERENCIAL',
+        requiereVerificacion: false,
+      });
+    });
+
+    it('marca requiereVerificacion si el teléfono no coincide con el registrado', async () => {
+      await crearCliente({ cedula: '1010101010', telefono: '+573000000101' });
+
+      const res = await crear({ ...solicitudValida, cedula: '1010101010', telefono: '3119998888' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.requiereVerificacion).toBe(true);
+    });
+
+    it('responde 409 si ya hay una solicitud en revisión para esa cédula', async () => {
+      await crear(solicitudValida);
+
+      const res = await crear(solicitudValida);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('SOLICITUD_EN_REVISION');
+    });
+
+    it('con peticiones simultáneas de la misma cédula solo crea una', async () => {
+      const respuestas = await Promise.all(Array.from({ length: 5 }, () => crear(solicitudValida)));
+      const codigos = respuestas.map((r) => r.status).sort();
+
+      expect(codigos).toEqual([201, 409, 409, 409, 409]);
+    });
+
+    it('rechaza (400) que el cliente intente fijar el estado', async () => {
+      const res = await crear({ ...solicitudValida, estado: 'APROBADA' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('rechaza (400) si no se acepta el tratamiento de datos', async () => {
+      const res = await crear({ ...solicitudValida, aceptaTratamientoDatos: false });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.details[0].campo).toBe('aceptaTratamientoDatos');
+    });
+
+    it('devuelve el detalle de cada campo inválido', async () => {
+      const res = await crear({ cedula: 'abc', aceptaTratamientoDatos: true });
+
+      expect(res.status).toBe(400);
+      const campos = res.body.error.details.map((d: { campo: string }) => d.campo);
+      expect(campos).toEqual(
+        expect.arrayContaining(['cedula', 'nombreCompleto', 'telefono', 'municipio']),
+      );
+    });
+
+    it('responde 400 con JSON mal formado', async () => {
+      const res = await request(app)
+        .post('/api/solicitudes')
+        .set('content-type', 'application/json')
+        .send('{"cedula": ');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('INVALID_JSON');
+    });
+  });
+
+  describe('GET /api/solicitudes', () => {
+    it('lista de la más reciente a la más antigua y filtra por cédula parcial', async () => {
+      await crear({ ...solicitudValida, cedula: '1111111111' });
+      await crear({ ...solicitudValida, cedula: '1111122222' });
+      await crear({ ...solicitudValida, cedula: '9999999999' });
+
+      const res = await request(app).get('/api/solicitudes?cedula=11111');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((s: { cedula: string }) => s.cedula)).toEqual([
+        '1111122222',
+        '1111111111',
+      ]);
+      expect(res.body.meta.total).toBe(2);
+    });
+  });
+
+  describe('GET /api/solicitudes/:id', () => {
+    it('devuelve el detalle completo', async () => {
+      const { body } = await crear(solicitudValida);
+
+      const res = await request(app).get(`/api/solicitudes/${body.data.id}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.id).toBe(body.data.id);
+    });
+
+    it('responde 404 si no existe', async () => {
+      const res = await request(app).get('/api/solicitudes/2f1d8b9e-7c1a-4d5e-9f3a-1b2c3d4e5f60');
+      expect(res.status).toBe(404);
+    });
+
+    it('responde 400 si el id no es un UUID', async () => {
+      const res = await request(app).get('/api/solicitudes/123');
+      expect(res.status).toBe(400);
+    });
+  });
+});
