@@ -1,0 +1,84 @@
+// Esquema de datos de AgriCapital.
+// Todos los datos del seed son ficticios.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Tipo de cliente al momento de radicar la solicitud.
+/// - PREFERENCIAL: ya tuvo crédito y tiene cupo preaprobado.
+/// - ANTIGUO: ya tuvo crédito, sin cupo preaprobado.
+/// - NUEVO: nunca ha radicado una solicitud con la empresa.
+enum TipoCliente {
+  PREFERENCIAL
+  ANTIGUO
+  NUEVO
+}
+
+/// El agente SIEMPRE crea solicitudes EN_REVISION. Los demás estados
+/// solo los asigna el equipo de crédito (fuera del alcance del agente).
+enum EstadoSolicitud {
+  EN_REVISION
+  APROBADA
+  RECHAZADA
+}
+
+enum CanalSolicitud {
+  WHATSAPP
+  WEB
+}
+
+/// Personas que ya han tenido un crédito con la empresa.
+/// El tipo (preferencial/antiguo) se deriva de `cupoPreaprobado`, no se almacena,
+/// para que nunca quede desincronizado.
+model Cliente {
+  id              String      @id @default(uuid()) @db.Uuid
+  cedula          String      @unique @db.VarChar(10)
+  nombreCompleto  String      @map("nombre_completo") @db.VarChar(120)
+  /// Formato E.164, p. ej. +573001234567
+  telefono        String      @db.VarChar(16)
+  municipio       String      @db.VarChar(80)
+  /// Monto del cupo preaprobado en COP. null o 0 = sin cupo.
+  cupoPreaprobado Decimal?    @map("cupo_preaprobado") @db.Decimal(14, 2)
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  solicitudes     Solicitud[]
+
+  @@index([telefono])
+  @@map("clientes")
+}
+
+/// Solicitudes de crédito radicadas (por el agente o por otros canales).
+/// Guarda una copia de los datos de contacto tal como los dio la persona.
+model Solicitud {
+  id                    String          @id @default(uuid()) @db.Uuid
+  clienteId             String?         @map("cliente_id") @db.Uuid
+  cliente               Cliente?        @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  cedula                String          @db.VarChar(10)
+  nombreCompleto        String          @map("nombre_completo") @db.VarChar(120)
+  telefono              String          @db.VarChar(16)
+  municipio             String          @db.VarChar(80)
+  /// Foto del tipo de cliente al momento de radicar.
+  tipoCliente           TipoCliente     @map("tipo_cliente")
+  estado                EstadoSolicitud @default(EN_REVISION)
+  canal                 CanalSolicitud  @default(WHATSAPP)
+  /// Monto que la persona dijo querer (opcional, informativo).
+  montoSolicitado       Decimal?        @map("monto_solicitado") @db.Decimal(14, 2)
+  /// true si algo no cuadra (p. ej. el teléfono de WhatsApp no coincide con el
+  /// registrado para esa cédula) y el equipo debe verificar identidad.
+  requiereVerificacion  Boolean         @default(false) @map("requiere_verificacion")
+  /// Momento en que la persona autorizó el tratamiento de datos (Ley 1581 de 2012).
+  consentimientoDatosAt DateTime        @map("consentimiento_datos_at")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+
+  @@index([cedula])
+  @@index([telefono])
+  @@index([createdAt])
+  @@map("solicitudes")
+}
