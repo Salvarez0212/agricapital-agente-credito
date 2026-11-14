@@ -111,6 +111,42 @@ describe('Panel de solicitudes', () => {
     expect(columnas.slice(1)).toEqual(etiquetas.map(([titulo]) => titulo));
   });
 
+  it('muestra la silueta de la tabla mientras llega la primera página', async () => {
+    let responder: (() => void) | undefined;
+    simularApi(
+      () =>
+        new Promise<Response>((resolver) => {
+          responder = () => resolver(respuestaJson(pagina([ANA])));
+        }),
+    );
+    const { container } = render(<App />);
+
+    // Para lectores de pantalla, el estado se anuncia en la región viva; la silueta es visual.
+    expect(await screen.findByText('Cargando solicitudes…')).toBeInTheDocument();
+    expect(container.querySelector('.esqueleto')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+
+    await act(async () => responder?.());
+
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(container.querySelector('.esqueleto')).not.toBeInTheDocument();
+    expect(screen.getByText('1 solicitud')).toBeInTheDocument();
+  });
+
+  it('no muestra la silueta si la primera carga falla', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    );
+    const { container } = render(<App />);
+
+    await screen.findByRole('alert');
+    expect(container.querySelector('.esqueleto')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cargando solicitudes…')).not.toBeInTheDocument();
+  });
+
   it('filtra por cédula mientras se escribe, con una sola petición al terminar', async () => {
     const peticiones = simularApi((p) =>
       respuestaJson(pagina(p.get('cedula') ? [ANA] : [ANA, CARLOS])),
