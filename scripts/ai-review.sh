@@ -4,14 +4,16 @@
 #   - Hallazgos críticos → exit 2: se bloquea la creación del PR y el informe vuelve a Claude.
 #   - Sin críticos       → exit 0: el PR se crea y las sugerencias se pasan como contexto.
 #   - Si la revisión falla (sin red, sin `claude`), no bloquea: avisa y deja pasar.
-# Saltarla a propósito: incluir SKIP_AI_REVIEW=1 en el comando.
+# Saltarla a propósito: incluir SKIP_AI_REVIEW=1 en el comando. Solo con autorización
+# explícita de una persona: el agente que escribió el código no debe saltarse su revisión.
 set -uo pipefail
 
 entrada="$(cat)"
 
 # Filtro barato: si el texto ni aparece, sale sin lanzar ningún proceso.
+# (Solo "pr create": el comando puede llevar flags entre "gh" y "pr".)
 case "$entrada" in
-  *"gh pr create"*) ;;
+  *"pr create"*) ;;
   *) exit 0 ;;
 esac
 
@@ -22,7 +24,9 @@ comando="$(printf '%s' "$entrada" | node -e '
     try { process.stdout.write(JSON.parse(d).tool_input?.command ?? ""); } catch {}
   });')"
 sep='(^|[;&|({[:space:]])'
-printf '%s' "$comando" | grep -Eq "${sep}gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)" || exit 0
+# Acepta flags globales antes del subcomando, p. ej. `gh -R owner/repo pr create`.
+gh_flags='([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*'
+printf '%s' "$comando" | grep -Eq "${sep}gh${gh_flags}[[:space:]]+pr[[:space:]]+create([[:space:]]|$)" || exit 0
 if printf '%s' "$comando" | grep -Eq "${sep}SKIP_AI_REVIEW=1[[:space:]]"; then
   echo '{"systemMessage":"Revisión IA omitida (SKIP_AI_REVIEW=1)."}'
   exit 0
@@ -55,13 +59,14 @@ fi
 # Un diff gigante no cabe en una revisión útil: se avisa en vez de fallar en silencio.
 MAX_DIFF_BYTES="${AI_REVIEW_MAX_DIFF_BYTES:-300000}"
 if [ "${#diff}" -gt "$MAX_DIFF_BYTES" ]; then
-  mensaje "Revisión IA no ejecutada: el diff (${#diff} bytes) supera ${MAX_DIFF_BYTES}. Divide el PR o revísalo manualmente."
+  mensaje "Revisión IA no ejecutada: el diff (${#diff} caracteres) supera ${MAX_DIFF_BYTES}. Divide el PR o revísalo manualmente."
   exit 0
 fi
 
 rama="$(git rev-parse --abbrev-ref HEAD | tr '/' '-')"
-mkdir -p .reviews
-informe=".reviews/${rama}-$(date +%Y%m%d-%H%M%S).md"
+dir_informes="${AI_REVIEW_DIR:-.reviews}"
+mkdir -p "$dir_informes"
+informe="$dir_informes/${rama}-$(date +%Y%m%d-%H%M%S).md"
 
 if ! command -v claude >/dev/null 2>&1; then
   mensaje "Revisión IA no ejecutada: no se encontró la CLI claude."
@@ -82,15 +87,16 @@ printf '%s\n' "$diff" | AI_REVIEW_RUNNING=1 claude -p \
   --disallowedTools "Read(**/.env)" "Read(**/.env.*)" "Grep(**/.env*)" \
   --setting-sources user \
   --no-session-persistence \
-  "$instrucciones" > "$informe" 2>/dev/null
+  "$instrucciones" > "$informe" 2> "$informe.err"
 estado=$?
 
 if [ $estado -ne 0 ] || [ ! -s "$informe" ]; then
-  mensaje "Revisión IA falló (código $estado); el PR no se bloquea. Revisa manualmente."
+  mensaje "Revisión IA falló (código $estado); el PR no se bloquea. Revisa manualmente. Detalle: $informe.err"
   exit 0
 fi
 
 # Tolera adornos de markdown (p. ej. **VEREDICTO: BLOQUEAR**).
+[ -s "$informe.err" ] || rm -f "$informe.err"
 veredicto="$(grep -Eo '^[*_#> `]*VEREDICTO:[*_ ]*(APROBAR|BLOQUEAR)' "$informe" | tail -1 | grep -Eo 'APROBAR|BLOQUEAR')"
 
 if [ "$veredicto" = "BLOQUEAR" ]; then

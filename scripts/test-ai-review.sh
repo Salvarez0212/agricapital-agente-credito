@@ -19,6 +19,7 @@ chmod +x "$tmp/bin/claude"
 
 export CLAUDE_PROJECT_DIR="$raiz"
 export AI_REVIEW_BASE="HEAD~1" # garantiza un diff no vacío
+export AI_REVIEW_DIR="$tmp/informes" # no toca los informes reales de .reviews/
 fallos=0
 export FAKE_REVIEW=""
 
@@ -49,6 +50,7 @@ ejecutar "ls -la";                                  caso "comando ajeno: no revi
 ejecutar 'git commit -m "docs: menciona gh pr create"'; caso "texto en un commit: no revisa" 0 ""
 ejecutar "SKIP_AI_REVIEW=1 gh pr create --title x"; caso "SKIP_AI_REVIEW=1 omite" 0 "omitida"
 ejecutar "cd repo && gh pr create --title x";       caso "aprobado: deja pasar" 0 "APROBADO"
+ejecutar "gh -R owner/repo pr create --title x";    caso "flags globales de gh: revisa" 0 "APROBADO"
 
 FAKE_REVIEW=$'## Hallazgos críticos\n1. bug\n\n**VEREDICTO: BLOQUEAR**'
 ejecutar "gh pr create --title x";                  caso "bloqueado (con markdown): exit 2" 2 "BLOQUEADO"
@@ -60,8 +62,9 @@ AI_REVIEW_MAX_DIFF_BYTES=10 ejecutar "gh pr create --title x"
 caso "diff demasiado grande: avisa sin revisar" 0 "supera"
 
 # Sin `claude` en el PATH: no bloquea.
-PATH="$(dirname "$(command -v node)"):/usr/bin:/bin"
+mkdir -p "$tmp/solo-node"
+ln -s "$(command -v node)" "$tmp/solo-node/node"
+PATH="$tmp/solo-node:/usr/bin:/bin"
 ejecutar "gh pr create --title x";                  caso "sin CLI claude: no bloquea" 0 "no se encontró"
 
-rm -f "$raiz"/.reviews/*"$(git -C "$raiz" rev-parse --abbrev-ref HEAD | tr '/' '-')"*.md 2>/dev/null
 [ "$fallos" -eq 0 ] && echo "Todos los tests del hook pasan." || { echo "$fallos test(s) fallaron."; exit 1; }
