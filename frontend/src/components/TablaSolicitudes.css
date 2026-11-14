@@ -73,3 +73,97 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/*
+ * Pantallas angostas: cada fila es una tarjeta con el nombre arriba y los datos debajo,
+ * cada uno con su título (data-label). Así se ve todo sin desplazarse de lado.
+ */
+@media (max-width: 40rem) {
+  .tabla-contenedor {
+    overflow: visible;
+    background: none;
+    border: none;
+  }
+
+  .tabla {
+    min-width: 0;
+  }
+
+  .tabla,
+  .tabla tbody,
+  .tabla tr,
+  .tabla th,
+  .tabla td {
+    display: block;
+  }
+
+  /* Los títulos de columna siguen ahí para lectores de pantalla; en pantalla los reemplaza
+     el título de cada dato. */
+  .tabla thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .tabla tbody {
+    display: grid;
+    gap: var(--espacio-3);
+  }
+
+  .tabla__fila {
+    padding: var(--espacio-4);
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+  }
+
+  .tabla th,
+  .tabla td,
+  .tabla tbody tr:last-child > * {
+    padding: 0;
+    border-bottom: none;
+  }
+
+  .tabla__nombre {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--espacio-2);
+    padding-bottom: var(--espacio-3);
+    margin-bottom: var(--espacio-3);
+  }
+
+  .tabla .tabla__nombre {
+    border-bottom: 1px solid var(--borde);
+  }
+
+  .tabla__abrir {
+    min-height: 2.75rem;
+    font-size: 1.0625rem;
+  }
+
+  .tabla__abrir + .etiqueta {
+    margin-left: 0;
+  }
+
+  .tabla td {
+    display: grid;
+    grid-template-columns: 7.5rem 1fr;
+    gap: var(--espacio-3);
+    align-items: center;
+    padding-block: var(--espacio-1);
+  }
+
+  /* Las etiquetas conservan su ancho natural en vez de estirarse a toda la columna. */
+  .tabla td > * {
+    justify-self: start;
+  }
+
+  .tabla td::before {
+    content: attr(data-label);
+    font-size: var(--texto-sm);
+    color: var(--texto-suave);
+  }
+}
