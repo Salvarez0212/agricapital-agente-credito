@@ -212,6 +212,18 @@ describe('agente de crédito', () => {
       expect(await prisma.solicitud.count()).toBe(1);
     });
 
+    it('la solicitud guarda la fecha real en que la persona autorizó (no la de radicación)', async () => {
+      await prepararIdentificado();
+      const autorizo = new Date(Date.now() - 10 * 60 * 1000);
+      await prisma.conversacion.updateMany({ data: { consentimientoAt: autorizo } });
+      llm.programar(herramienta('crear_solicitud', datos), texto('ok'));
+
+      await decir('sí, confirmo');
+
+      const solicitud = await prisma.solicitud.findFirstOrThrow();
+      expect(solicitud.consentimientoDatosAt).toEqual(autorizo);
+    });
+
     it('solo radica una solicitud por conversación', async () => {
       await prepararIdentificado();
       llm.programar(

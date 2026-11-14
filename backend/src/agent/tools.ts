@@ -168,7 +168,9 @@ async function crearSolicitud(
   }
 
   try {
-    const solicitud = await solicitudService.crear(parsed.data);
+    const solicitud = await solicitudService.crear(parsed.data, {
+      consentimientoAt: ctx.consentimientoAt,
+    });
     ctx.solicitudId = solicitud.id;
     return ok({
       registrada: true,
