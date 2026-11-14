@@ -34,7 +34,7 @@ export const HERRAMIENTAS: Anthropic.Beta.BetaTool[] = [
   {
     name: 'registrar_consentimiento',
     description:
-      'Registra si la persona autoriza el tratamiento de sus datos personales (Ley 1581 de 2012). Llámala cuando la persona responda a la solicitud de autorización. Es obligatoria antes de pedir o consultar la cédula.',
+      'Registra si la persona autoriza el tratamiento de sus datos personales (Ley 1581 de 2012). Llámala cuando la persona responda a la solicitud de autorización, y también con acepta=false si en cualquier momento retira una autorización que había dado. Es obligatoria antes de pedir o consultar la cédula.',
     strict: true,
     input_schema: {
       type: 'object',
@@ -102,10 +102,25 @@ function primerNombre(nombreCompleto: string): string {
 
 function registrarConsentimiento(input: { acepta?: unknown }, ctx: ContextoConversacion) {
   if (input.acepta !== true) {
+    const revocado = ctx.consentimientoAt !== null;
+    // Revocar (Ley 1581): la sesión deja de usar los datos de la persona.
+    ctx.consentimientoAt = null;
+    ctx.cedula = null;
+    ctx.tipoCliente = null;
     return ok({
       registrado: false,
-      instruccion:
-        'La persona no autorizó el tratamiento de datos. Solo responde preguntas generales.',
+      ...(revocado && { revocado: true }),
+      instruccion: [
+        revocado
+          ? 'La persona retiró la autorización: no uses ni pidas sus datos.'
+          : 'La persona no autorizó el tratamiento de datos.',
+        'Solo responde preguntas generales.',
+        ctx.solicitudId
+          ? 'La solicitud que ya radicó se mantiene; si quiere que se eliminen sus datos, puede pedir la supresión a un asesor.'
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
     });
   }
   ctx.consentimientoAt ??= new Date();
@@ -168,7 +183,9 @@ async function crearSolicitud(
   }
 
   try {
-    const solicitud = await solicitudService.crear(parsed.data);
+    const solicitud = await solicitudService.crear(parsed.data, {
+      consentimientoAt: ctx.consentimientoAt,
+    });
     ctx.solicitudId = solicitud.id;
     return ok({
       registrada: true,

@@ -15,8 +15,12 @@ export const solicitudService = {
    * 3. No se permite una segunda solicitud de la misma cédula mientras otra siga en revisión (409).
    * 4. Si la cédula existe pero el teléfono no coincide con el registrado, se marca
    *    `requiereVerificacion` para que el equipo valide identidad.
+   *
+   * `consentimientoAt`: momento en que la persona autorizó el tratamiento de datos.
+   * El agente pasa el momento real de la autorización; si no se indica (API REST),
+   * la autorización llega en la misma petición y se usa la fecha actual.
    */
-  async crear(input: CrearSolicitudInput) {
+  async crear(input: CrearSolicitudInput, { consentimientoAt }: { consentimientoAt?: Date } = {}) {
     return prisma.$transaction(async (tx) => {
       await solicitudModel.lockPorCedula(input.cedula, tx);
 
@@ -43,7 +47,7 @@ export const solicitudService = {
           tipoCliente: clasificarCliente(cliente),
           estado: EstadoSolicitud.EN_REVISION,
           requiereVerificacion: cliente !== null && cliente.telefono !== input.telefono,
-          consentimientoDatosAt: new Date(),
+          consentimientoDatosAt: consentimientoAt ?? new Date(),
         },
         tx,
       );

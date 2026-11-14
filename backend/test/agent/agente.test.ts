@@ -3,7 +3,13 @@ import { crearAgente, MAX_ITERACIONES, RESPUESTAS } from '../../src/agent/agent.
 import { SYSTEM_PROMPT } from '../../src/agent/prompts/system-prompt.js';
 import { prisma } from '../../src/lib/prisma.js';
 import { crearCliente, limpiarBd } from '../helpers/db.js';
-import { herramienta, LlmFalso, rechazo, texto } from '../helpers/llm-falso.js';
+import {
+  cortadoEnHerramienta,
+  herramienta,
+  LlmFalso,
+  rechazo,
+  texto,
+} from '../helpers/llm-falso.js';
 
 const TEL = '+573001112233';
 
@@ -144,6 +150,86 @@ describe('agente de crédito', () => {
     });
   });
 
+  describe('revocar la autorización', () => {
+    async function aceptarEIdentificar() {
+      llm.programar(
+        herramienta('registrar_consentimiento', { acepta: true }),
+        herramienta('identificar_cliente', { cedula: '1234567890' }),
+        texto('ok'),
+      );
+      await decir('acepto, 1234567890');
+    }
+
+    it('al revocar, la sesión olvida la cédula y deja de permitir consultas y solicitudes', async () => {
+      await aceptarEIdentificar();
+
+      llm.programar(
+        herramienta('registrar_consentimiento', { acepta: false }),
+        texto('Entendido.'),
+      );
+      await decir('ya no autorizo el uso de mis datos');
+
+      expect(llm.ultimoResultado().contenido).toMatchObject({ registrado: false, revocado: true });
+      const conversacion = await prisma.conversacion.findFirstOrThrow();
+      expect(conversacion).toMatchObject({
+        consentimientoAt: null,
+        cedula: null,
+        tipoCliente: null,
+      });
+
+      llm.programar(
+        herramienta('crear_solicitud', {
+          nombre_completo: 'Camila Torres',
+          municipio: 'Zipaquirá',
+          monto_solicitado: null,
+        }),
+        texto('ok'),
+      );
+      await decir('igual radícame');
+      expect(llm.ultimoResultado()).toMatchObject({ esError: true });
+      expect(await prisma.solicitud.count()).toBe(0);
+    });
+
+    it('si ya había radicado, la solicitud se mantiene y se informa el derecho de supresión', async () => {
+      await aceptarEIdentificar();
+      llm.programar(
+        herramienta('crear_solicitud', {
+          nombre_completo: 'Camila Torres',
+          municipio: 'Zipaquirá',
+          monto_solicitado: null,
+        }),
+        texto('Radicada.'),
+      );
+      await decir('sí, confirmo');
+
+      llm.programar(
+        herramienta('registrar_consentimiento', { acepta: false }),
+        texto('Entendido.'),
+      );
+      await decir('retiro mi autorización');
+
+      expect(String(llm.ultimoResultado().contenido.instruccion)).toMatch(/supresión/);
+      expect(await prisma.solicitud.count()).toBe(1);
+    });
+
+    it('puede volver a autorizar después de revocar', async () => {
+      await aceptarEIdentificar();
+      llm.programar(herramienta('registrar_consentimiento', { acepta: false }), texto('ok'));
+      await decir('no autorizo');
+
+      llm.programar(
+        herramienta('registrar_consentimiento', { acepta: true }),
+        herramienta('identificar_cliente', { cedula: '1234567890' }),
+        texto('ok'),
+      );
+      await decir('cambié de opinión, sí autorizo');
+
+      expect(llm.ultimoResultado()).toMatchObject({ esError: false });
+      const conversacion = await prisma.conversacion.findFirstOrThrow();
+      expect(conversacion.consentimientoAt).not.toBeNull();
+    });
+  });
+
   describe('crear_solicitud', () => {
     const datos = {
       nombre_completo: 'Camila Torres',
@@ -212,6 +298,18 @@ describe('agente de crédito', () => {
       expect(await prisma.solicitud.count()).toBe(1);
     });
 
+    it('la solicitud guarda la fecha real en que la persona autorizó (no la de radicación)', async () => {
+      await prepararIdentificado();
+      const autorizo = new Date(Date.now() - 10 * 60 * 1000);
+      await prisma.conversacion.updateMany({ data: { consentimientoAt: autorizo } });
+      llm.programar(herramienta('crear_solicitud', datos), texto('ok'));
+
+      await decir('sí, confirmo');
+
+      const solicitud = await prisma.solicitud.findFirstOrThrow();
+      expect(solicitud.consentimientoDatosAt).toEqual(autorizo);
+    });
+
     it('solo radica una solicitud por conversación', async () => {
       await prepararIdentificado();
       llm.programar(
@@ -231,6 +329,33 @@ describe('agente de crédito', () => {
     it('si el modelo declina, responde con un mensaje seguro', async () => {
       llm.programar(rechazo());
       expect((await decir('algo raro')).respuesta).toBe(RESPUESTAS.noPuedoAyudar);
+    });
+
+    it('después de un rechazo, la conversación sigue funcionando', async () => {
+      llm.programar(rechazo());
+      await decir('algo raro');
+
+      llm.programar(texto('Claro, te ayudo con tu crédito.'));
+      const salida = await decir('ok, quiero un crédito');
+
+      expect(salida.respuesta).toBe('Claro, te ayudo con tu crédito.');
+      const conversacion = await prisma.conversacion.findFirstOrThrow();
+      expect(conversacion.mensajes).not.toContainEqual({ role: 'assistant', content: [] });
+    });
+
+    it('si la respuesta se corta (max_tokens) a mitad de una herramienta, no rompe el historial', async () => {
+      llm.programar(cortadoEnHerramienta('registrar_consentimiento', { acepta: true }));
+      const cortada = await decir('sí, acepto');
+
+      expect(cortada.respuesta).toBe(RESPUESTAS.errorTecnico);
+
+      llm.programar(texto('Gracias, ¿me das tu cédula?'));
+      const siguiente = await decir('¿sigues ahí?');
+
+      expect(siguiente.respuesta).toBe('Gracias, ¿me das tu cédula?');
+      // La herramienta cortada no se ejecutó.
+      const conversacion = await prisma.conversacion.findFirstOrThrow();
+      expect(conversacion.consentimientoAt).toBeNull();
     });
 
     it(`corta el loop tras ${MAX_ITERACIONES} iteraciones de herramientas`, async () => {
