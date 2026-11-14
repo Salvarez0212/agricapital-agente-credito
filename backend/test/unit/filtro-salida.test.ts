@@ -11,6 +11,10 @@ describe('filtro de salida: promesas', () => {
     'Te garantizo que te lo aprueban.',
     'Quedaste aprobado para 8 millones.',
     'El desembolso está garantizado.',
+    // Negaciones engañosas: la negación no se refiere a la promesa.
+    'No te preocupes, tu crédito está aprobado.',
+    'Sin duda, te aprobamos el crédito.',
+    'Ni lo pienses: quedaste aprobado.',
   ])('bloquea: "%s"', (texto) => {
     expect(revisarSalida(texto, sinPermitidos)).toBe('PROMESA');
   });
@@ -21,6 +25,8 @@ describe('filtro de salida: promesas', () => {
     'No puedo garantizar la aprobación, eso lo decide el equipo de crédito.',
     'Tu solicitud quedó registrada y está en revisión.',
     'Si tu crédito es aprobado, el desembolso tarda 1 a 2 días hábiles.',
+    'No te garantizo el resultado: lo decide el equipo de crédito.',
+    'Nunca te aprobamos ni rechazamos por este chat.',
   ])('permite: "%s"', (texto) => {
     expect(revisarSalida(texto, sinPermitidos)).toBeNull();
   });
@@ -46,6 +52,11 @@ describe('filtro de salida: datos personales', () => {
   it('permite montos de dinero', () => {
     expect(revisarSalida('Prestamos hasta $50.000.000.', propios)).toBeNull();
     expect(revisarSalida('Solicitas 2.000.000 pesos.', propios)).toBeNull();
+  });
+
+  it('no confunde fechas con cédulas', () => {
+    expect(revisarSalida('Radicada el 2026-11-13.', propios)).toBeNull();
+    expect(revisarSalida('Te llamamos el 13/11/2026.', propios)).toBeNull();
   });
 
   it('permite números que vienen de las herramientas (p. ej. el cupo sin $)', () => {

@@ -26,16 +26,21 @@ const PATRONES_PROMESA: RegExp[] = [
   /\b(aprobacion|desembolso|credito)\s+(esta\s+)?garantizad/,
 ];
 
-const NEGACION = /\b(no|nunca|ni|sin|tampoco)\b/;
+/**
+ * Negación PEGADA a la promesa ("no te garantizo", "nunca te aprobamos", "no puedo
+ * garantizarte"). Una negación suelta antes ("No te preocupes, tu crédito está
+ * aprobado", "Sin duda, te aprobamos") NO cuenta: ahí la promesa es afirmativa.
+ */
+const NEGACION_PEGADA =
+  /\b(no|nunca|jamas|tampoco)(\s+(puedo|podemos|se puede|es posible|vamos a|voy a))?\s+$/;
 
 function hayPromesa(texto: string): boolean {
   const t = normalizar(texto);
   return PATRONES_PROMESA.some((patron) => {
     const re = new RegExp(patron.source, 'g');
     for (const m of t.matchAll(re)) {
-      // Se descarta si hay una negación en las ~4 palabras previas ("no puedo garantizar").
       const antes = t.slice(Math.max(0, m.index - 30), m.index);
-      if (!NEGACION.test(antes)) return true;
+      if (!NEGACION_PEGADA.test(antes)) return true;
     }
     return false;
   });
@@ -63,7 +68,11 @@ export function variantesPermitidas(valores: Array<string | null | undefined>): 
   return permitidos;
 }
 
-function hayDatoAjeno(texto: string, permitidos: Set<string>): boolean {
+const FECHA = /\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/g;
+
+function hayDatoAjeno(textoOriginal: string, permitidos: Set<string>): boolean {
+  // Las fechas (2026-11-13, 13/11/2026) no son cédulas ni teléfonos.
+  const texto = textoOriginal.replace(FECHA, ' ');
   for (const m of texto.matchAll(NUMERO)) {
     const digitos = soloDigitos(m[0]);
     if (digitos.length < 6 || digitos.length > 13) continue;

@@ -82,6 +82,15 @@ describe('guardrails dentro del agente', () => {
       expect(salida.respuesta).toBe(RESPUESTAS.datosPersonales);
     });
 
+    it('no bloquea cuando repite un número que escribió la propia persona', async () => {
+      const agente = crearAgente(llm);
+      llm.programar(texto('Anoto que solicitas 5.000.000. ¿Lo confirmas?'));
+
+      const salida = await agente.procesarMensaje({ telefono: TEL, texto: 'quiero 5.000.000' });
+
+      expect(salida.respuesta).toBe('Anoto que solicitas 5.000.000. ¿Lo confirmas?');
+    });
+
     it('no bloquea el saludo legítimo de un preferencial con su cupo', async () => {
       await crearCliente({
         cedula: '1010101010',

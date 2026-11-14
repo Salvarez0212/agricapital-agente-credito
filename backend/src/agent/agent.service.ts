@@ -48,17 +48,21 @@ const NUMEROS = /\d[\d.,]*\d/g;
 /** Números legítimos de la FAQ (montos, plazos): el filtro de salida no los trata como datos personales. */
 const NUMEROS_FAQ = SYSTEM_PROMPT.match(NUMEROS) ?? [];
 
-/** Números que ya conoce la conversación: los que devolvieron las herramientas. */
-function numerosDeHerramientas(mensajes: Mensaje[]): string[] {
-  return mensajes.flatMap((m) =>
-    Array.isArray(m.content)
-      ? m.content.flatMap((b) =>
-          b.type === 'tool_result' && typeof b.content === 'string'
-            ? (b.content.match(NUMEROS) ?? [])
-            : [],
-        )
-      : [],
-  );
+/**
+ * Números que ya conoce la conversación: los que escribió la propia persona y los
+ * que devolvieron las herramientas. Repetirlos no revela nada nuevo.
+ */
+function numerosConocidos(mensajes: Mensaje[]): string[] {
+  return mensajes.flatMap((m) => {
+    if (typeof m.content === 'string') {
+      return m.role === 'user' ? (m.content.match(NUMEROS) ?? []) : [];
+    }
+    return (m.content ?? []).flatMap((b) =>
+      b.type === 'tool_result' && typeof b.content === 'string'
+        ? (b.content.match(NUMEROS) ?? [])
+        : [],
+    );
+  });
 }
 
 export interface EntradaAgente {
@@ -223,7 +227,7 @@ export function crearAgente(llm: ClienteLlm, opciones: OpcionesAgente = {}) {
                 ctx.cedula,
                 ctx.telefono,
                 ...NUMEROS_FAQ,
-                ...numerosDeHerramientas([...historial, ...nuevos]),
+                ...numerosConocidos([...historial, ...nuevos]),
               ]),
             )
           : null;
