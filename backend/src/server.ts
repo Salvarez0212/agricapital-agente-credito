@@ -1,12 +1,15 @@
 import { createApp } from './app.js';
 import type { WebhookMeta } from './channels/whatsapp/meta.js';
 import type { WebhookWhatsApp } from './channels/whatsapp/webhook.js';
-import { direccionEscucha } from './lib/escucha.js';
+import { advertenciaExposicion, apiAccesoRemoto, direccionEscucha } from './lib/escucha.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
 
 const { host, port } = direccionEscucha();
-const app = createApp();
+const app = createApp({ apiAccesoRemoto: apiAccesoRemoto() });
+
+const advertencia = advertenciaExposicion(host, apiAccesoRemoto());
+if (advertencia) logger.warn(advertencia);
 
 const server = app.listen(port, host, () => {
   logger.info(`API escuchando en http://${host}:${port}`);

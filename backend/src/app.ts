@@ -27,7 +27,7 @@ export interface OpcionesApp {
   meta?: OpcionesMeta;
   /** Límites de peticiones por IP (los tests los bajan para probar el 429). */
   limites?: Partial<LimitesPeticiones>;
-  /** Servir /api también a peticiones reenviadas por un proxy (API_ACCESO_REMOTO=true). */
+  /** Servir /api también a peticiones reenviadas por un proxy (server.ts lo lee de API_ACCESO_REMOTO). */
   apiAccesoRemoto?: boolean;
 }
 
@@ -37,7 +37,7 @@ export function createApp({
   whatsapp,
   meta,
   limites,
-  apiAccesoRemoto = process.env.API_ACCESO_REMOTO === 'true',
+  apiAccesoRemoto = false,
 }: OpcionesApp = {}) {
   const app = express();
   const limite = { ...LIMITES_POR_DEFECTO, ...limites };

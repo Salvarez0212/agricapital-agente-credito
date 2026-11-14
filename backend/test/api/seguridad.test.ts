@@ -93,6 +93,12 @@ describe('API solo desde esta máquina', () => {
     },
   );
 
+  it('una cabecera de reenvío vacía también cuenta como reenviada', async () => {
+    const res = await request(createApp()).get('/api/solicitudes').set('X-Forwarded-For', '');
+
+    expect(res.status).toBe(403);
+  });
+
   it('también protege el simulador del chat (gasta tokens del modelo)', async () => {
     const res = await request(createApp())
       .post('/api/chat/simulate')

@@ -70,6 +70,10 @@ const CABECERAS_DE_PROXY = ['x-forwarded-for', 'cf-connecting-ip', 'forwarded', 
  * API no tiene login) o gastar tokens con el simulador. El proxy de Vite no agrega estas
  * cabeceras, así que el panel sigue funcionando.
  *
+ * Es una defensa pensada para cloudflared (siempre agrega Cf-Connecting-Ip y
+ * X-Forwarded-For, y quien está fuera no puede quitarlas). Un proxy que no agregue
+ * ninguna de estas cabeceras pasaría: no sustituye a la autenticación.
+ *
  * `permitirRemoto` lo desactiva para un despliegue en el que la API sí deba servirse
  * detrás de un proxy (con autenticación delante): API_ACCESO_REMOTO=true.
  */
