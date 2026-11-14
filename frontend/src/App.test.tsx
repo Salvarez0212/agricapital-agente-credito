@@ -85,6 +85,32 @@ describe('Panel de solicitudes', () => {
     expect(screen.getByText('2 solicitudes')).toBeInTheDocument();
   });
 
+  it('en móvil cada dato lleva su título y la tabla conserva sus roles', async () => {
+    simularApi(() => respuestaJson(pagina([ANA])));
+    render(<App />);
+
+    const tabla = await screen.findByRole('table');
+    // Roles explícitos: Safari los pierde si no, al mostrar la tabla como tarjetas.
+    expect(tabla).toHaveAttribute('role', 'table');
+    expect(within(tabla).getByRole('rowheader')).toHaveTextContent('Ana María Restrepo');
+
+    const etiquetas = within(tabla)
+      .getAllByRole('cell')
+      .map((celda) => [celda.dataset.label, celda.textContent]);
+    expect(etiquetas).toEqual([
+      ['Cédula', '1.010.101.010'],
+      ['Teléfono', '+57 300 111 2233'],
+      ['Municipio', 'Rionegro'],
+      ['Tipo de cliente', 'Preferencial'],
+      ['Radicada', expect.stringMatching(/14\/11\/2026/)],
+    ]);
+    // El título de cada dato en móvil es el mismo de su columna en escritorio.
+    const columnas = within(tabla)
+      .getAllByRole('columnheader')
+      .map((th) => th.textContent);
+    expect(columnas.slice(1)).toEqual(etiquetas.map(([titulo]) => titulo));
+  });
+
   it('filtra por cédula mientras se escribe, con una sola petición al terminar', async () => {
     const peticiones = simularApi((p) =>
       respuestaJson(pagina(p.get('cedula') ? [ANA] : [ANA, CARLOS])),
