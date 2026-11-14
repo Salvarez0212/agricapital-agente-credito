@@ -1,0 +1,19 @@
+# Revisa cada semana las dependencias y abre PRs con las actualizaciones.
+# Las de seguridad las abre en cuanto se publica el aviso, sin esperar a la semana.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies]
+    # Menores y parches juntos en un solo PR para no llenar el repo de PRs.
+    groups:
+      menores-y-parches:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies, ci]
