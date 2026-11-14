@@ -4,8 +4,8 @@ import { z } from 'zod';
 import type { Agente } from '../../agent/agent.service.js';
 import { AppError } from '../../lib/app-error.js';
 import { logger } from '../../lib/logger.js';
-import { telefonoSchema } from '../../schemas/common.schema.js';
 import type { EnviadorWhatsApp } from './enviador.js';
+import { crearProcesadorMensajes } from './procesador.js';
 
 /** Campos del webhook de Twilio que usamos (Twilio envía muchos más). */
 const mensajeTwilioSchema = z.looseObject({
@@ -15,8 +15,8 @@ const mensajeTwilioSchema = z.looseObject({
   NumMedia: z.coerce.number().int().default(0),
 });
 
-export const RESPUESTA_FUERA_DE_COLOMBIA =
-  'Hola. Por ahora solo podemos atender celulares de Colombia. Gracias por escribirnos.';
+// Se re-exporta para no romper a quien ya lo importaba desde aquí.
+export { RESPUESTA_FUERA_DE_COLOMBIA } from './procesador.js';
 
 export interface OpcionesWebhook {
   obtenerAgente: () => Agente;
@@ -42,40 +42,7 @@ export function crearWebhookWhatsApp({
   authToken,
   urlPublica,
 }: OpcionesWebhook) {
-  const pendientes = new Set<Promise<void>>();
-  // Twilio puede reintentar un webhook: se ignora un MessageSid ya visto.
-  const vistos = new Map<string, number>();
-  const VENTANA_DUPLICADOS_MS = 60 * 60 * 1000;
-
-  function yaProcesado(sid: string): boolean {
-    const ahora = Date.now();
-    for (const [id, t] of vistos) if (ahora - t > VENTANA_DUPLICADOS_MS) vistos.delete(id);
-    if (vistos.has(sid)) return true;
-    vistos.set(sid, ahora);
-    return false;
-  }
-
-  async function procesar(datos: z.infer<typeof mensajeTwilioSchema>): Promise<void> {
-    const numero = datos.From.replace(/^whatsapp:/, '');
-    try {
-      const telefono = telefonoSchema.safeParse(numero);
-      if (!telefono.success) {
-        await enviador.enviar(numero, RESPUESTA_FUERA_DE_COLOMBIA);
-        return;
-      }
-      // Un mensaje solo con adjuntos llega con Body vacío: el agente responde que solo lee texto.
-      const { respuesta } = await obtenerAgente().procesarMensaje({
-        telefono: telefono.data,
-        texto: datos.Body,
-      });
-      await enviador.enviar(telefono.data, respuesta);
-    } catch (err) {
-      logger.error(
-        { err, messageSid: datos.MessageSid },
-        'WhatsApp: no se pudo procesar el mensaje',
-      );
-    }
-  }
+  const procesador = crearProcesadorMensajes({ obtenerAgente, enviador, canal: 'twilio' });
 
   const handler: RequestHandler = (req, res) => {
     const firma = req.header('X-Twilio-Signature') ?? '';
@@ -91,26 +58,18 @@ export function crearWebhookWhatsApp({
     }
 
     const datos = mensajeTwilioSchema.parse(params);
-    logger.info({ messageSid: datos.MessageSid }, 'WhatsApp: mensaje recibido');
 
     // Respuesta inmediata con TwiML vacío: el mensaje real se envía después por la API.
     res.type('text/xml').send('<Response></Response>');
 
-    if (yaProcesado(datos.MessageSid)) {
-      logger.info({ messageSid: datos.MessageSid }, 'WhatsApp: mensaje duplicado ignorado');
-      return;
-    }
-    const tarea = procesar(datos).finally(() => pendientes.delete(tarea));
-    pendientes.add(tarea);
+    procesador.recibir({
+      id: datos.MessageSid,
+      numero: datos.From.replace(/^whatsapp:/, ''),
+      texto: datos.Body,
+    });
   };
 
-  return {
-    handler,
-    /** Espera a que terminen los mensajes en proceso (tests y apagado ordenado). */
-    async esperarPendientes(): Promise<void> {
-      await Promise.all([...pendientes]);
-    },
-  };
+  return { handler, esperarPendientes: procesador.esperarPendientes };
 }
 
 export type WebhookWhatsApp = ReturnType<typeof crearWebhookWhatsApp>;
