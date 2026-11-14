@@ -5,6 +5,16 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AgriCapital · Panel de solicitudes</title>
+    <script>
+      // Aplica el tema guardado antes de pintar, para que no parpadee al recargar.
+      // La clave es la misma que usa src/hooks/useTema.ts.
+      try {
+        const tema = localStorage.getItem('agricapital:tema');
+        if (tema === 'claro' || tema === 'oscuro') document.documentElement.dataset.tema = tema;
+      } catch {
+        // Sin almacenamiento: se sigue el tema del sistema.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

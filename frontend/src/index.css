@@ -1,31 +1,37 @@
 /* Tokens de diseño: un solo lugar para colores, espacios y tipografía. */
 :root {
+  /*
+   * Cada color se define una sola vez con light-dark(claro, oscuro). El navegador elige
+   * según color-scheme: por defecto sigue al sistema, y el selector de tema lo fija con
+   * data-tema en <html> (ver index.html y useTema).
+   */
   color-scheme: light dark;
 
-  --fondo: #f6f8fa;
-  --superficie: #ffffff;
-  --superficie-alt: #f1f4f7;
-  --borde: #dde3ea;
-  --borde-fuerte: #b7c1cc;
-  --texto: #1b2430;
-  --texto-suave: #52606d;
-  --enlace: #1d5fbf;
-  --resaltado: #eef4fd;
-  --primario: #1f6f43;
-  --primario-hover: #185a36;
-  --sobre-primario: #ffffff;
-  --foco: #1d5fbf;
-  --alerta: #8a4b00;
-  --alerta-fondo: #fff4e0;
-  --error: #b42318;
-  --error-fondo: #fef3f2;
-  --tipo-preferencial: #1f6f43;
-  --tipo-preferencial-fondo: #e7f5ec;
-  --tipo-antiguo: #1d4f91;
-  --tipo-antiguo-fondo: #e8f0fb;
-  --tipo-nuevo: #5b4a8b;
-  --tipo-nuevo-fondo: #f0edf8;
-  --sombra: 0 20px 45px rgb(15 23 42 / 0.18);
+  --fondo: light-dark(#f6f8fa, #0f141a);
+  --superficie: light-dark(#ffffff, #171e26);
+  --superficie-alt: light-dark(#f1f4f7, #1d2630);
+  --borde: light-dark(#dde3ea, #2a3540);
+  --borde-fuerte: light-dark(#b7c1cc, #3d4a57);
+  --texto: light-dark(#1b2430, #e6ebf0);
+  --texto-suave: light-dark(#52606d, #a3b1bf);
+  --enlace: light-dark(#1d5fbf, #7fb0ff);
+  --resaltado: light-dark(#eef4fd, #1c2a3b);
+  --primario: light-dark(#1f6f43, #3fa36b);
+  --primario-hover: light-dark(#185a36, #4cb87b);
+  /* En oscuro, texto oscuro sobre el verde claro: el blanco daba ~3:1 (no cumple AA). */
+  --sobre-primario: light-dark(#ffffff, #0f141a);
+  --foco: light-dark(#1d5fbf, #7fb0ff);
+  --alerta: light-dark(#8a4b00, #ffc46b);
+  --alerta-fondo: light-dark(#fff4e0, #3a2a10);
+  --error: light-dark(#b42318, #ff9b91);
+  --error-fondo: light-dark(#fef3f2, #3b1a17);
+  --tipo-preferencial: light-dark(#1f6f43, #7fd6a3);
+  --tipo-preferencial-fondo: light-dark(#e7f5ec, #15301f);
+  --tipo-antiguo: light-dark(#1d4f91, #9cc2ff);
+  --tipo-antiguo-fondo: light-dark(#e8f0fb, #162540);
+  --tipo-nuevo: light-dark(#5b4a8b, #c7b8f2);
+  --tipo-nuevo-fondo: light-dark(#f0edf8, #262040);
+  --sombra: 0 20px 45px light-dark(rgb(15 23 42 / 0.18), rgb(0 0 0 / 0.5));
 
   --espacio-1: 0.25rem;
   --espacio-2: 0.5rem;
@@ -50,34 +56,12 @@
   background-color: var(--fondo);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fondo: #0f141a;
-    --superficie: #171e26;
-    --superficie-alt: #1d2630;
-    --borde: #2a3540;
-    --borde-fuerte: #3d4a57;
-    --texto: #e6ebf0;
-    --texto-suave: #a3b1bf;
-    --enlace: #7fb0ff;
-    --resaltado: #1c2a3b;
-    --primario: #3fa36b;
-    --primario-hover: #4cb87b;
-    /* Texto oscuro sobre el verde claro: el blanco daba ~3:1 (no cumple AA); así supera 6:1. */
-    --sobre-primario: #0f141a;
-    --foco: #7fb0ff;
-    --alerta: #ffc46b;
-    --alerta-fondo: #3a2a10;
-    --error: #ff9b91;
-    --error-fondo: #3b1a17;
-    --tipo-preferencial: #7fd6a3;
-    --tipo-preferencial-fondo: #15301f;
-    --tipo-antiguo: #9cc2ff;
-    --tipo-antiguo-fondo: #162540;
-    --tipo-nuevo: #c7b8f2;
-    --tipo-nuevo-fondo: #262040;
-    --sombra: 0 20px 45px rgb(0 0 0 / 0.5);
-  }
+:root[data-tema='claro'] {
+  color-scheme: light;
+}
+
+:root[data-tema='oscuro'] {
+  color-scheme: dark;
 }
 
 *,

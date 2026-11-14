@@ -1,0 +1,18 @@
+.selector-tema {
+  display: flex;
+  align-items: center;
+  gap: var(--espacio-2);
+  font-size: var(--texto-sm);
+  color: var(--texto-suave);
+}
+
+.selector-tema select {
+  min-height: 2.75rem;
+  padding: var(--espacio-2) var(--espacio-3);
+  font: inherit;
+  color: var(--texto);
+  background: var(--superficie);
+  border: 1px solid var(--borde-fuerte);
+  border-radius: var(--radio-sm);
+  cursor: pointer;
+}

@@ -17,6 +17,14 @@
   padding-block: var(--espacio-4);
 }
 
+.encabezado__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--espacio-3);
+}
+
 .encabezado__marca {
   margin: 0;
   font-size: var(--texto-sm);

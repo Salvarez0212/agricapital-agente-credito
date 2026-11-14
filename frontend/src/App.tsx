@@ -3,6 +3,7 @@ import type { Solicitud } from './api/solicitudes';
 import { DetalleSolicitud } from './components/DetalleSolicitud';
 import { Filtros } from './components/Filtros';
 import { Paginacion } from './components/Paginacion';
+import { SelectorTema } from './components/SelectorTema';
 import { TablaSolicitudes } from './components/TablaSolicitudes';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useSolicitudes } from './hooks/useSolicitudes';
@@ -77,14 +78,17 @@ function App() {
             <p className="encabezado__marca">AgriCapital</p>
             <h1>Panel de solicitudes</h1>
           </div>
-          <button
-            type="button"
-            className="boton"
-            onClick={() => setVersion((v) => v + 1)}
-            disabled={cargando}
-          >
-            Actualizar
-          </button>
+          <div className="encabezado__acciones">
+            <SelectorTema />
+            <button
+              type="button"
+              className="boton"
+              onClick={() => setVersion((v) => v + 1)}
+              disabled={cargando}
+            >
+              Actualizar
+            </button>
+          </div>
         </div>
       </header>
 
