@@ -1,15 +1,23 @@
 import type { Conversacion, Prisma } from '../generated/prisma/client.js';
 import { prisma } from '../lib/prisma.js';
 
-/** Una conversación expira tras 24 h sin mensajes (ventana de servicio de WhatsApp). */
-export const VENTANA_CONVERSACION_MS = 24 * 60 * 60 * 1000;
+/**
+ * Minutos de inactividad tras los cuales la conversación empieza de cero
+ * (saludo, autorización y cédula). Cada mensaje reinicia el reloj.
+ * Corto a propósito: evita arrastrar contexto viejo y que otra persona con el
+ * mismo celular herede una sesión ya identificada.
+ */
+export function ventanaConversacionMs(): number {
+  const minutos = Number(process.env.CONVERSATION_TTL_MINUTES);
+  return (Number.isFinite(minutos) && minutos > 0 ? minutos : 30) * 60 * 1000;
+}
 
 export const conversacionModel = {
   findActivaPorTelefono(telefono: string): Promise<Conversacion | null> {
     return prisma.conversacion.findFirst({
       where: {
         telefono,
-        ultimoMensajeAt: { gt: new Date(Date.now() - VENTANA_CONVERSACION_MS) },
+        ultimoMensajeAt: { gt: new Date(Date.now() - ventanaConversacionMs()) },
       },
       orderBy: { ultimoMensajeAt: 'desc' },
     });
