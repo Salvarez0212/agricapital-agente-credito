@@ -2,7 +2,7 @@ import { prisma } from '../../src/lib/prisma.js';
 
 /** Deja las tablas vacías entre tests. */
 export async function limpiarBd() {
-  await prisma.$executeRaw`TRUNCATE TABLE solicitudes, clientes RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE TABLE conversaciones, solicitudes, clientes RESTART IDENTITY CASCADE`;
 }
 
 export function crearCliente(
