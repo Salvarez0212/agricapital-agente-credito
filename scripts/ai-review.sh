@@ -9,26 +9,53 @@ set -uo pipefail
 
 entrada="$(cat)"
 
-# Solo actúa sobre `gh pr create`; cualquier otro comando pasa sin costo.
+# Filtro barato: si el texto ni aparece, sale sin lanzar ningún proceso.
 case "$entrada" in
   *"gh pr create"*) ;;
   *) exit 0 ;;
 esac
-case "$entrada" in
-  *"SKIP_AI_REVIEW=1"*) echo '{"systemMessage":"Revisión IA omitida (SKIP_AI_REVIEW=1)."}'; exit 0 ;;
-esac
+
+# Filtro preciso: se mira solo el comando (no el JSON completo), para que un
+# mensaje de commit o un echo que mencione "gh pr create" no dispare la revisión.
+comando="$(printf '%s' "$entrada" | node -e '
+  let d = ""; process.stdin.on("data", (c) => (d += c)).on("end", () => {
+    try { process.stdout.write(JSON.parse(d).tool_input?.command ?? ""); } catch {}
+  });')"
+sep='(^|[;&|({[:space:]])'
+printf '%s' "$comando" | grep -Eq "${sep}gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)" || exit 0
+if printf '%s' "$comando" | grep -Eq "${sep}SKIP_AI_REVIEW=1[[:space:]]"; then
+  echo '{"systemMessage":"Revisión IA omitida (SKIP_AI_REVIEW=1)."}'
+  exit 0
+fi
 # Evita recursión si el propio revisor ejecutara hooks.
 [ "${AI_REVIEW_RUNNING:-}" = "1" ] && exit 0
+
+# Emite {"systemMessage": $1} como JSON válido aunque el texto tenga comillas.
+mensaje() {
+  node -e 'process.stdout.write(JSON.stringify({ systemMessage: process.argv[1] }) + "\n")' "$1"
+}
 
 raiz="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
 cd "$raiz" || exit 0
 
-git fetch -q origin main 2>/dev/null || true
-base="$(git merge-base origin/main HEAD 2>/dev/null || echo origin/main)"
+aviso_fetch=""
+if [ -n "${AI_REVIEW_BASE:-}" ]; then
+  base="$AI_REVIEW_BASE" # solo para los tests del script
+else
+  git fetch -q origin main 2>/dev/null || aviso_fetch=" Aviso: no se pudo actualizar origin/main; el diff puede incluir cambios ajenos."
+  base="$(git merge-base origin/main HEAD 2>/dev/null || echo origin/main)"
+fi
 diff="$(git diff "$base"...HEAD -- . ':(exclude)package-lock.json')"
 
 if [ -z "$diff" ]; then
-  echo '{"systemMessage":"Revisión IA: no hay diferencias contra main."}'
+  mensaje "Revisión IA: no hay diferencias contra main."
+  exit 0
+fi
+
+# Un diff gigante no cabe en una revisión útil: se avisa en vez de fallar en silencio.
+MAX_DIFF_BYTES="${AI_REVIEW_MAX_DIFF_BYTES:-300000}"
+if [ "${#diff}" -gt "$MAX_DIFF_BYTES" ]; then
+  mensaje "Revisión IA no ejecutada: el diff (${#diff} bytes) supera ${MAX_DIFF_BYTES}. Divide el PR o revísalo manualmente."
   exit 0
 fi
 
@@ -37,9 +64,14 @@ mkdir -p .reviews
 informe=".reviews/${rama}-$(date +%Y%m%d-%H%M%S).md"
 
 if ! command -v claude >/dev/null 2>&1; then
-  echo '{"systemMessage":"Revisión IA no ejecutada: no se encontró la CLI `claude`."}'
+  mensaje "Revisión IA no ejecutada: no se encontró la CLI claude."
   exit 0
 fi
+
+# Las instrucciones se leen de origin/main, no de la rama revisada: un PR no puede
+# debilitar las reglas con las que se juzga a sí mismo. Si aún no existen en main
+# (el PR que las introduce), se usan las locales.
+instrucciones="$(git show origin/main:.claude/review/instrucciones.md 2>/dev/null || cat .claude/review/instrucciones.md)"
 
 # Sesión headless independiente: solo herramientas de lectura, sin la config del
 # proyecto (evita que el revisor dispare este mismo hook) y sin guardar la sesión.
@@ -47,19 +79,21 @@ printf '%s\n' "$diff" | AI_REVIEW_RUNNING=1 claude -p \
   --model sonnet \
   --tools "Read,Grep,Glob" \
   --allowedTools "Read,Grep,Glob" \
+  --disallowedTools "Read(**/.env)" "Read(**/.env.*)" "Grep(**/.env*)" \
   --setting-sources user \
   --no-session-persistence \
-  "$(cat .claude/review/instrucciones.md)" > "$informe" 2>/dev/null
+  "$instrucciones" > "$informe" 2>/dev/null
 estado=$?
 
 if [ $estado -ne 0 ] || [ ! -s "$informe" ]; then
-  echo "{\"systemMessage\":\"Revisión IA falló (código $estado); el PR no se bloquea. Revisa manualmente.\"}"
+  mensaje "Revisión IA falló (código $estado); el PR no se bloquea. Revisa manualmente."
   exit 0
 fi
 
-veredicto="$(grep -E '^VEREDICTO: (APROBAR|BLOQUEAR)' "$informe" | tail -1)"
+# Tolera adornos de markdown (p. ej. **VEREDICTO: BLOQUEAR**).
+veredicto="$(grep -Eo '^[*_#> `]*VEREDICTO:[*_ ]*(APROBAR|BLOQUEAR)' "$informe" | tail -1 | grep -Eo 'APROBAR|BLOQUEAR')"
 
-if [ "$veredicto" = "VEREDICTO: BLOQUEAR" ]; then
+if [ "$veredicto" = "BLOQUEAR" ]; then
   {
     echo "Revisión IA independiente: BLOQUEADO. Corrige los hallazgos críticos y vuelve a crear el PR."
     echo "Informe completo: $informe"
@@ -69,8 +103,15 @@ if [ "$veredicto" = "VEREDICTO: BLOQUEAR" ]; then
   exit 2
 fi
 
-# Aprobado (o sin veredicto claro): se deja pasar y se comparte el informe como contexto.
+# Aprobado se deja pasar y se comparte el informe como contexto. Sin veredicto
+# claro (respuesta truncada o mal formada) tampoco bloquea, pero lo avisa de forma visible.
+if [ "$veredicto" = "APROBAR" ]; then
+  mensaje="Revisión IA independiente: APROBADO ($informe).$aviso_fetch"
+else
+  mensaje="ATENCIÓN: la revisión IA no devolvió un veredicto claro. Lee $informe antes de continuar.$aviso_fetch"
+fi
 contexto="$(node -e 'const fs=require("fs");process.stdout.write(JSON.stringify(fs.readFileSync(process.argv[1],"utf8")))' "$informe")"
-printf '{"systemMessage":"Revisión IA independiente: %s (%s)","hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":%s}}\n' \
-  "${veredicto:-sin veredicto, revisar}" "$informe" "$contexto"
+mensaje_json="$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$mensaje")"
+printf '{"systemMessage":%s,"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":%s}}\n' \
+  "$mensaje_json" "$contexto"
 exit 0

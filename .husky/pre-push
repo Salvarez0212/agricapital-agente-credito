@@ -2,8 +2,14 @@
 # Los tests de integración necesitan Postgres (npm run db:up).
 # Para saltarla en una emergencia: git push --no-verify
 
-if ! (echo > /dev/tcp/localhost/5432) 2>/dev/null && ! nc -z localhost 5432 2>/dev/null; then
-  echo "pre-push: Postgres no responde en localhost:5432. Levántalo con 'npm run db:up'." >&2
+# Chequeo portable (husky usa sh): se intenta abrir una conexión TCP con Node al
+# Postgres de los tests (DATABASE_URL_TEST o el de docker-compose por defecto).
+if ! node -e '
+  const u = new URL(process.env.DATABASE_URL_TEST ?? "postgresql://localhost:5432/agricapital_test");
+  require("net").connect(Number(u.port || 5432), u.hostname)
+    .on("connect", () => process.exit(0))
+    .on("error", () => process.exit(1));'; then
+  echo "pre-push: Postgres no responde. Levántalo con 'npm run db:up'." >&2
   exit 1
 fi
 
