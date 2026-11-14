@@ -1,5 +1,6 @@
 import { EstadoSolicitud } from '../generated/prisma/enums.js';
 import { AppError } from '../lib/app-error.js';
+import { nombresCoinciden } from '../lib/nombres.js';
 import { prisma } from '../lib/prisma.js';
 import { clienteModel } from '../models/cliente.model.js';
 import { solicitudModel, type FiltroSolicitudes } from '../models/solicitud.model.js';
@@ -13,8 +14,8 @@ export const solicitudService = {
    * 1. Toda solicitud nace EN_REVISION (nadie la aprueba al crearla).
    * 2. El tipo de cliente lo decide el servidor según la BD, nunca quien llama.
    * 3. No se permite una segunda solicitud de la misma cédula mientras otra siga en revisión (409).
-   * 4. Si la cédula existe pero el teléfono no coincide con el registrado, se marca
-   *    `requiereVerificacion` para que el equipo valide identidad.
+   * 4. Si la cédula existe pero el teléfono o el nombre no coinciden con los
+   *    registrados, se marca `requiereVerificacion` para que el equipo valide identidad.
    *
    * `consentimientoAt`: momento en que la persona autorizó el tratamiento de datos.
    * El agente pasa el momento real de la autorización; si no se indica (API REST),
@@ -46,7 +47,10 @@ export const solicitudService = {
           canal: input.canal,
           tipoCliente: clasificarCliente(cliente),
           estado: EstadoSolicitud.EN_REVISION,
-          requiereVerificacion: cliente !== null && cliente.telefono !== input.telefono,
+          requiereVerificacion:
+            cliente !== null &&
+            (cliente.telefono !== input.telefono ||
+              !nombresCoinciden(input.nombreCompleto, cliente.nombreCompleto)),
           consentimientoDatosAt: consentimientoAt ?? new Date(),
         },
         tx,

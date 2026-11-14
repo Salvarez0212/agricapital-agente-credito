@@ -34,7 +34,12 @@ describe('API de solicitudes', () => {
         cupoPreaprobado: 5_000_000,
       });
 
-      const res = await crear({ ...solicitudValida, cedula: '1010101010', telefono: '3000000101' });
+      const res = await crear({
+        ...solicitudValida,
+        cedula: '1010101010',
+        telefono: '3000000101',
+        nombreCompleto: 'María Fernanda Rojas Gil',
+      });
 
       expect(res.status).toBe(201);
       expect(res.body.data).toMatchObject({
@@ -50,6 +55,42 @@ describe('API de solicitudes', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.data.requiereVerificacion).toBe(true);
+    });
+
+    it('marca requiereVerificacion si el nombre no coincide con el registrado', async () => {
+      await crearCliente({
+        cedula: '1010101010',
+        nombreCompleto: 'María Fernanda Rojas Gil',
+        telefono: '+573000000101',
+      });
+
+      const res = await crear({
+        ...solicitudValida,
+        cedula: '1010101010',
+        telefono: '3000000101', // mismo teléfono
+        nombreCompleto: 'Camila Andrea Torres', // otro nombre
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.requiereVerificacion).toBe(true);
+    });
+
+    it('no marca verificación si el nombre es compatible (sin tildes, abreviado)', async () => {
+      await crearCliente({
+        cedula: '1010101010',
+        nombreCompleto: 'María Fernanda Rojas Gil',
+        telefono: '+573000000101',
+      });
+
+      const res = await crear({
+        ...solicitudValida,
+        cedula: '1010101010',
+        telefono: '3000000101',
+        nombreCompleto: 'maria rojas',
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.requiereVerificacion).toBe(false);
     });
 
     it('responde 409 si ya hay una solicitud en revisión para esa cédula', async () => {
