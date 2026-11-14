@@ -28,7 +28,9 @@ describe('Seguridad HTTP', () => {
         message: 'Demasiadas peticiones. Intenta de nuevo en un momento.',
       },
     });
-    expect(res.headers['retry-after']).toBe('60');
+    const espera = Number(res.headers['retry-after']);
+    expect(espera).toBeGreaterThan(0);
+    expect(espera).toBeLessThanOrEqual(60);
     expect(res.headers['ratelimit']).toBeDefined();
   });
 
@@ -42,14 +44,16 @@ describe('Seguridad HTTP', () => {
     expect((await desde('203.0.113.2')).status).not.toBe(429);
   });
 
-  it('los webhooks tienen su propio límite', async () => {
+  it('los webhooks tienen su propio límite, que corta antes de llegar al canal', async () => {
+    // Sin credenciales de Meta, el canal responde 503: si llega un 503, el canal se ejecutó.
     const app = createApp({ limites: { webhooks: 1 } });
 
-    await request(app).get('/webhooks/meta');
-    const res = await request(app).get('/webhooks/meta');
+    const primera = await request(app).post('/webhooks/meta').send({});
+    const segunda = await request(app).post('/webhooks/meta').send({});
 
-    expect(res.status).toBe(429);
-    expect(res.body.error.code).toBe('DEMASIADAS_PETICIONES');
+    expect(primera.status).toBe(503);
+    expect(segunda.status).toBe(429);
+    expect(segunda.body.error.code).toBe('DEMASIADAS_PETICIONES');
   });
 
   it('/health no tiene límite (lo consultan los monitores)', async () => {

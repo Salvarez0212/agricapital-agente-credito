@@ -1,4 +1,5 @@
-import { rateLimit } from 'express-rate-limit';
+import type { Request } from 'express';
+import { rateLimit, type RateLimitInfo } from 'express-rate-limit';
 import helmet from 'helmet';
 import { AppError } from '../lib/app-error.js';
 
@@ -40,8 +41,11 @@ export function limitarPeticiones(maximo: number, ventanaMs: number) {
     limit: maximo,
     standardHeaders: 'draft-8', // cabecera RateLimit con lo que queda
     legacyHeaders: false,
-    handler: (_req, res, next) => {
-      res.setHeader('Retry-After', Math.ceil(ventanaMs / 1000));
+    handler: (req, res, next) => {
+      // Segundos que faltan de verdad para que se reinicie el contador de esta IP.
+      const info = (req as Request & { rateLimit?: RateLimitInfo }).rateLimit;
+      const reinicio = info?.resetTime?.getTime() ?? Date.now() + ventanaMs;
+      res.setHeader('Retry-After', Math.max(1, Math.ceil((reinicio - Date.now()) / 1000)));
       next(
         new AppError(
           429,
