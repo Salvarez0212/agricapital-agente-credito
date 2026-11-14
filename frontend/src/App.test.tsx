@@ -161,7 +161,7 @@ describe('Panel de solicitudes', () => {
     await userEvent.click(within(filaAna!).getByRole('button', { name: 'Ana María Restrepo' }));
     const detalle = within(screen.getByRole('dialog', { name: 'Ana María Restrepo' }));
     expect(detalle.getByRole('note')).toHaveTextContent(
-      /1 intento bloqueado\..*detuvo un mensaje que intentaba/,
+      /1 intento bloqueado\..*detuvo un mensaje que parecía intentar/,
     );
     expect(detalle.getByText('Intentos bloqueados').nextElementSibling).toHaveTextContent('1');
   });
@@ -172,7 +172,9 @@ describe('Panel de solicitudes', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Ana María Restrepo' }));
 
-    expect(screen.queryByText(/intentos? bloqueados?$/)).not.toBeInTheDocument();
+    const detalle = within(screen.getByRole('dialog', { name: 'Ana María Restrepo' }));
+    expect(detalle.queryByText('Intentos bloqueados')).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d+ intentos? bloqueados?/)).not.toBeInTheDocument();
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 

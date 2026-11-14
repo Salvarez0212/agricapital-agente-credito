@@ -140,7 +140,7 @@ npm run db:up                                        # los tests del backend usa
 npm run format:check && npm run lint && npm run typecheck && npm test
 ```
 
-- **Backend (223 tests):** unitarios (clasificación, normalización, nombres, guardia, filtro de salida), seguridad HTTP (cabeceras y límite de peticiones) e integración con Supertest contra una **base de datos aparte** (`agricapital_test`), que `globalSetup` crea y migra sola. El agente se prueba con un **LLM falso de respuestas programadas**: sin costo, sin red y determinista, y valida las mismas reglas de historial que la API real.
+- **Backend (224 tests):** unitarios (clasificación, normalización, nombres, guardia, filtro de salida), seguridad HTTP (cabeceras y límite de peticiones) e integración con Supertest contra una **base de datos aparte** (`agricapital_test`), que `globalSetup` crea y migra sola. El agente se prueba con un **LLM falso de respuestas programadas**: sin costo, sin red y determinista, y valida las mismas reglas de historial que la API real.
 - **Frontend (31 tests):** el panel completo con la API simulada (carga, filtros, detalle, errores, paginación, respuestas tardías, móvil) y el selector de tema.
 - **`npm run eval:guardia -w backend`:** evalúa el clasificador de prompt injection **contra el modelo real** con 12 mensajes legítimos y 12 ataques. Usa la API key.
 - **`npm run test:hooks`:** tests del hook de revisión IA con un `claude` falso.

@@ -46,6 +46,9 @@ const PATRONES_INYECCION: RegExp[] = [
   // etiquetas que imitan mensajes del sistema
   /<\/?\s*(system|assistant|instructions?|sistema)\s*>/,
   /\[\/?\s*(inst|system|sistema)\s*\]/,
+  // el marcador interno de mensaje bloqueado (MARCADOR_BLOQUEADO): escribirlo es imitar
+  // al sistema, y además inflaría el conteo de intentos bloqueados que ve el panel
+  /\[\s*mensaje omitido por la politica de seguridad\s*\]/,
 ];
 
 /** Nivel 1: detección por patrones. Devuelve true si el mensaje parece un ataque. */
