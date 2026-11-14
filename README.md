@@ -106,7 +106,7 @@ npm run db:seed                     # 13 clientes ficticios y 5 solicitudes de e
 ## Ejecutar
 
 ```bash
-npm run dev:api     # API en http://localhost:3000 (recarga al guardar)
+npm run dev:api     # API en http://127.0.0.1:3000 (recarga al guardar)
 npm run dev:web     # Panel en http://localhost:5173 (reenvía /api al backend)
 ```
 
@@ -177,7 +177,7 @@ Además, **toda solicitud nace `EN_REVISION`**: la API rechaza un body que inten
 
 ## API REST
 
-Base: `http://localhost:3000`. Todas las respuestas de error tienen el formato `{ "error": { "code", "message", "details?" } }`. En validación, `details` lista `{ campo, mensaje }`.
+Base: `http://127.0.0.1:3000`. Todas las respuestas de error tienen el formato `{ "error": { "code", "message", "details?" } }`. En validación, `details` lista `{ campo, mensaje }`.
 
 | Método       | Ruta                                                 | Respuestas                                                                       |
 | ------------ | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -192,8 +192,8 @@ Base: `http://localhost:3000`. Todas las respuestas de error tienen el formato `
 | `POST`       | `/webhooks/whatsapp`                                 | Mensajes de Twilio (firma) · 403 · 503 sin configurar                            |
 
 ```bash
-curl -s localhost:3000/api/clientes/1010101010
-curl -s "localhost:3000/api/solicitudes?cedula=1010&page=1&pageSize=20"
+curl -s 127.0.0.1:3000/api/clientes/1010101010
+curl -s "127.0.0.1:3000/api/solicitudes?cedula=1010&page=1&pageSize=20"
 ```
 
 La validación **normaliza** lo que la gente escribe: `1.010.101.010` → `1010101010`, y `300 123 4567` o `+57 300…` → `+573001234567`. El nombre exige al menos nombre y apellido. El 409 está protegido contra condiciones de carrera con un _advisory lock_ de Postgres por cédula: hay un test con 5 peticiones simultáneas.

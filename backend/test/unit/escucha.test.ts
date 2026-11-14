@@ -16,4 +16,13 @@ describe('direccionEscucha', () => {
       port: 8080,
     });
   });
+
+  it('un PORT vacío usa el 3000 en vez de un puerto al azar', () => {
+    expect(direccionEscucha({ PORT: '' }).port).toBe(3000);
+  });
+
+  it('un PORT inválido falla con un mensaje claro', () => {
+    expect(() => direccionEscucha({ PORT: 'abc' })).toThrow('PORT inválido: "abc"');
+    expect(() => direccionEscucha({ PORT: '70000' })).toThrow('PORT inválido');
+  });
 });

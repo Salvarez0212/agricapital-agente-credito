@@ -12,6 +12,11 @@ export function direccionEscucha(env: NodeJS.ProcessEnv = process.env): {
   port: number;
 } {
   const host = env.HOST?.trim() || '127.0.0.1';
-  const port = Number(env.PORT ?? 3000);
+  // Un PORT vacío daría 0 (Node elegiría un puerto al azar): se toma como no definido.
+  const textoPuerto = env.PORT?.trim() || '3000';
+  const port = Number(textoPuerto);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`PORT inválido: "${textoPuerto}". Debe ser un entero entre 1 y 65535.`);
+  }
   return { host, port };
 }
