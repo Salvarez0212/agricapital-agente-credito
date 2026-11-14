@@ -5,13 +5,12 @@
  */
 import 'dotenv/config';
 import { createInterface } from 'node:readline/promises';
-import { crearAgente } from '../src/agent/agent.service.js';
-import { crearClienteAnthropic } from '../src/agent/llm.js';
+import { crearAgenteProduccion } from '../src/agent/produccion.js';
 import { prisma } from '../src/lib/prisma.js';
 import { telefonoSchema } from '../src/schemas/common.schema.js';
 
 const telefono = telefonoSchema.parse(process.argv[2] ?? '+573001112233');
-const agente = crearAgente(crearClienteAnthropic());
+const agente = crearAgenteProduccion();
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 
 process.stdout.write(`Chat con el agente como ${telefono}. Escribe "salir" para terminar.\n\n`);
