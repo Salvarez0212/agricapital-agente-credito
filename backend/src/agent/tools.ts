@@ -2,6 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { TipoCliente } from '../generated/prisma/enums.js';
 import { AppError } from '../lib/app-error.js';
 import { clienteModel } from '../models/cliente.model.js';
+import { solicitudModel } from '../models/solicitud.model.js';
 import { cedulaSchema } from '../schemas/common.schema.js';
 import { crearSolicitudSchema } from '../schemas/solicitud.schema.js';
 import { clasificarCliente } from '../services/cliente.service.js';
@@ -215,8 +216,11 @@ async function crearSolicitud(
     });
   } catch (e) {
     if (e instanceof AppError && e.code === 'SOLICITUD_EN_REVISION') {
-      // Sin verificación no se confirma que esa cédula tenga una solicitud.
-      if (!ctx.identidadVerificada) {
+      // Solo se confirma que existe una solicitud en revisión si es de este mismo
+      // teléfono. Si no (sea o no la cédula de un cliente), mensaje genérico: decirlo
+      // revelaría datos de otra persona y permitiría sondear cédulas.
+      const pendiente = await solicitudModel.findEnRevisionByCedula(ctx.cedula);
+      if (pendiente?.telefono !== ctx.telefono) {
         return error(
           'No fue posible radicar la solicitud por este medio. Indica a la persona que un asesor puede ayudarle por los canales oficiales, sin dar más detalles.',
         );

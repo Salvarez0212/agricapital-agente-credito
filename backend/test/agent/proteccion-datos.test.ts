@@ -117,6 +117,59 @@ describe('protección de datos de terceros', () => {
     expect(String(contenido.error)).not.toMatch(/revisión/);
   });
 
+  it('no revela la solicitud en revisión de una persona NO cliente desde otro teléfono', async () => {
+    // Ana radicó como persona nueva (no está en clientes) desde su teléfono.
+    await prisma.solicitud.create({
+      data: {
+        cedula: '3030303030',
+        nombreCompleto: 'Ana Lucía Pardo',
+        telefono: '+573005550000',
+        municipio: 'Tunja',
+        tipoCliente: 'NUEVO',
+        consentimientoDatosAt: new Date(),
+      },
+    });
+    await identificar('3030303030'); // escribe un tercero desde TEL_ATACANTE
+    llm.programar(
+      herramienta('crear_solicitud', {
+        nombre_completo: 'Carlos Pérez Ruiz',
+        municipio: 'Neiva',
+        monto_solicitado: null,
+      }),
+      texto('No fue posible.'),
+    );
+
+    await decir('sí');
+
+    expect(String(llm.ultimoResultado().contenido.error)).not.toMatch(/revisión/);
+  });
+
+  it('a la propia persona sí le confirma que ya tiene una solicitud en revisión', async () => {
+    await prisma.solicitud.create({
+      data: {
+        cedula: '3030303030',
+        nombreCompleto: 'Ana Lucía Pardo',
+        telefono: '+573005550000',
+        municipio: 'Tunja',
+        tipoCliente: 'NUEVO',
+        consentimientoDatosAt: new Date(),
+      },
+    });
+    await identificar('3030303030', '+573005550000');
+    llm.programar(
+      herramienta('crear_solicitud', {
+        nombre_completo: 'Ana Lucía Pardo',
+        municipio: 'Tunja',
+        monto_solicitado: null,
+      }),
+      texto('Ya tienes una en revisión.'),
+    );
+
+    await decir('sí', '+573005550000');
+
+    expect(String(llm.ultimoResultado().contenido.error)).toMatch(/solicitud en revisión/);
+  });
+
   it('solo permite una cédula por conversación', async () => {
     await identificar('5555555555');
     llm.programar(herramienta('identificar_cliente', { cedula: MARIA.cedula }), texto('No puedo.'));
