@@ -81,6 +81,15 @@ const notificacionMetaSchema = z.looseObject({
                 }),
               )
               .optional(),
+            statuses: z
+              .array(
+                z.looseObject({
+                  id: z.string(),
+                  status: z.string(),
+                  errors: z.array(z.looseObject({ code: z.number() })).optional(),
+                }),
+              )
+              .optional(),
           }),
         }),
       ),
@@ -88,7 +97,34 @@ const notificacionMetaSchema = z.looseObject({
   ),
 });
 
-/** Extrae los mensajes entrantes; ignora estados de entrega (sent/delivered/read/failed). */
+export interface FalloEntrega {
+  /** Id del mensaje que no se entregó (wamid). */
+  mensajeId: string;
+  /** Códigos de error de Meta, p. ej. 131031 (cuenta bloqueada) o 131030 (número no permitido). */
+  codigos: number[];
+}
+
+/**
+ * Extrae las entregas fallidas (`status: failed`). Meta acepta el envío con 200 y avisa
+ * después, por este webhook, si no pudo entregarlo. Sin esto, un bloqueo de la cuenta
+ * pasa en silencio. Solo id y códigos: el resto del estado trae el número del destinatario.
+ */
+export function extraerFallosEntrega(cuerpo: unknown): FalloEntrega[] {
+  const datos = notificacionMetaSchema.safeParse(cuerpo);
+  if (!datos.success || datos.data.object !== 'whatsapp_business_account') return [];
+  return datos.data.entry.flatMap((entrada) =>
+    entrada.changes
+      .filter((cambio) => cambio.field === 'messages')
+      .flatMap((cambio) => cambio.value.statuses ?? [])
+      .filter((estado) => estado.status === 'failed')
+      .map((estado) => ({
+        mensajeId: estado.id,
+        codigos: (estado.errors ?? []).map((e) => e.code),
+      })),
+  );
+}
+
+/** Extrae los mensajes entrantes; los estados de entrega van por extraerFallosEntrega. */
 export function extraerMensajes(cuerpo: unknown): MensajeEntrante[] {
   const datos = notificacionMetaSchema.safeParse(cuerpo);
   if (!datos.success || datos.data.object !== 'whatsapp_business_account') return [];
@@ -161,6 +197,9 @@ export function crearWebhookMeta({
 
     // Se responde 200 de inmediato: Meta reintenta cualquier otra respuesta durante días.
     res.sendStatus(200);
+    for (const fallo of extraerFallosEntrega(cuerpo)) {
+      logger.error(fallo, 'WhatsApp (Meta): no se pudo entregar un mensaje');
+    }
     for (const mensaje of extraerMensajes(cuerpo)) procesador.recibir(mensaje);
   };
 

@@ -6,11 +6,13 @@ import { createApp } from '../../src/app.js';
 import type { EnviadorWhatsApp } from '../../src/channels/whatsapp/enviador.js';
 import {
   crearEnviadorMeta,
+  extraerFallosEntrega,
   extraerMensajes,
   firmaMetaValida,
   type WebhookMeta,
 } from '../../src/channels/whatsapp/meta.js';
 import { RESPUESTA_FUERA_DE_COLOMBIA } from '../../src/channels/whatsapp/procesador.js';
+import { logger } from '../../src/lib/logger.js';
 import { limpiarBd } from '../helpers/db.js';
 import { LlmFalso, texto } from '../helpers/llm-falso.js';
 
@@ -55,6 +57,30 @@ function notificacion(mensaje: Record<string, unknown> = {}) {
       },
     ],
   };
+}
+
+/** Estado de entrega fallido, como el que envía Meta con la cuenta bloqueada (131031). */
+const estadoFallido = {
+  id: 'wamid.fallido',
+  status: 'failed',
+  timestamp: '1794678078',
+  recipient_id: '573001112233',
+  errors: [
+    {
+      code: 131031,
+      title: 'Business Account locked',
+      error_data: { details: 'Business account has been locked.' },
+    },
+  ],
+};
+
+/** Notificación de Meta que solo trae estados de entrega (sin mensajes entrantes). */
+function notificacionEstado(...estados: Record<string, unknown>[]) {
+  const cuerpo = notificacion();
+  const valor = cuerpo.entry[0]!.changes[0]!.value as Record<string, unknown>;
+  delete valor.messages;
+  valor.statuses = estados;
+  return cuerpo;
 }
 
 function firmar(cuerpo: string, secreto = APP_SECRET) {
@@ -170,6 +196,24 @@ describe('webhook de Meta /webhooks/meta', () => {
     expect(enviador.enviados).toHaveLength(0);
   });
 
+  it('registra una entrega fallida con su código, sin el número del destinatario', async () => {
+    const espia = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    try {
+      const res = await enviarFirmado(notificacionEstado(estadoFallido));
+      await webhook().esperarPendientes();
+
+      expect(res.status).toBe(200);
+      expect(espia).toHaveBeenCalledWith(
+        { mensajeId: 'wamid.fallido', codigos: [131031] },
+        'WhatsApp (Meta): no se pudo entregar un mensaje',
+      );
+      expect(JSON.stringify(espia.mock.calls)).not.toContain('573001112233');
+      expect(llm.llamadas).toHaveLength(0);
+    } finally {
+      espia.mockRestore();
+    }
+  });
+
   it('un audio o imagen recibe la respuesta de "solo texto"', async () => {
     await enviarFirmado(notificacion({ type: 'audio', text: undefined, audio: { id: '1' } }));
     await webhook().esperarPendientes();
@@ -232,6 +276,28 @@ describe('extraerMensajes', () => {
 
   it('normaliza el número a E.164 con "+"', () => {
     expect(extraerMensajes(notificacion())[0]?.numero).toBe('+573001112233');
+  });
+});
+
+describe('extraerFallosEntrega', () => {
+  it('devuelve solo los estados fallidos, con id y códigos', () => {
+    const cuerpo = notificacionEstado(
+      { id: 'wamid.ok', status: 'delivered', recipient_id: '573001112233' },
+      estadoFallido,
+    );
+    expect(extraerFallosEntrega(cuerpo)).toEqual([
+      { mensajeId: 'wamid.fallido', codigos: [131031] },
+    ]);
+  });
+
+  it('un fallo sin lista de errores devuelve códigos vacíos', () => {
+    const cuerpo = notificacionEstado({ id: 'wamid.x', status: 'failed' });
+    expect(extraerFallosEntrega(cuerpo)).toEqual([{ mensajeId: 'wamid.x', codigos: [] }]);
+  });
+
+  it('ignora mensajes entrantes y payloads ajenos', () => {
+    expect(extraerFallosEntrega(notificacion())).toEqual([]);
+    expect(extraerFallosEntrega({ object: 'page', entry: [] })).toEqual([]);
   });
 });
 
