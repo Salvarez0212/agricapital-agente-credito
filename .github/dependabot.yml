@@ -7,6 +7,12 @@ updates:
     schedule:
       interval: weekly
     labels: [dependencies]
+    ignore:
+      # Los tipos de Node siguen la versión con la que corre el proyecto (Node 22, ver
+      # .nvmrc y engines). Una versión mayor describiría APIs que aquí no existen y el
+      # typecheck aceptaría código que falla al ejecutarse. Se sube junto con Node.
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
     # Menores y parches juntos en un solo PR para no llenar el repo de PRs.
     groups:
       menores-y-parches:
