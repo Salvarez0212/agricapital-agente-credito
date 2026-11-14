@@ -8,7 +8,9 @@ services:
       POSTGRES_PASSWORD: agricapital
       POSTGRES_DB: agricapital
     ports:
-      - '5432:5432'
+      # Solo desde esta máquina: con '5432:5432' Docker publica el puerto en todas las
+      # interfaces y cualquiera en la misma red podría conectarse con estas credenciales.
+      - '127.0.0.1:5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

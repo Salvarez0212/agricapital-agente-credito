@@ -4,7 +4,7 @@ import { defineConfig } from 'vite';
 
 // La API no habilita CORS: en desarrollo, Vite reenvía /api al backend y el
 // navegador ve un solo origen. En producción se sirve detrás del mismo dominio.
-const API_URL = process.env.VITE_API_PROXY ?? 'http://localhost:3000';
+const API_URL = process.env.VITE_API_PROXY ?? 'http://127.0.0.1:3000';
 
 export default defineConfig({
   plugins: [react()],
