@@ -13,13 +13,16 @@ export function SelectorTema() {
   return (
     <div className="selector-tema">
       <label htmlFor="selector-tema">Tema</label>
-      <select id="selector-tema" value={tema} onChange={(e) => elegir(e.target.value as Tema)}>
-        {OPCIONES.map(({ valor, nombre }) => (
-          <option key={valor} value={valor}>
-            {nombre}
-          </option>
-        ))}
-      </select>
+      {/* Contenedor para dibujar la flecha: un <select> no admite ::after. */}
+      <span className="selector-tema__control">
+        <select id="selector-tema" value={tema} onChange={(e) => elegir(e.target.value as Tema)}>
+          {OPCIONES.map(({ valor, nombre }) => (
+            <option key={valor} value={valor}>
+              {nombre}
+            </option>
+          ))}
+        </select>
+      </span>
     </div>
   );
 }

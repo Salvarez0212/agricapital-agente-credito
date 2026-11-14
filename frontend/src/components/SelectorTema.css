@@ -6,9 +6,32 @@
   color: var(--texto-suave);
 }
 
+.selector-tema__control {
+  position: relative;
+  display: inline-flex;
+}
+
+/*
+ * La flecha nativa del <select> ignora el padding y queda pegada al borde: se oculta
+ * (appearance: none) y se dibuja una propia, con margen y con el color del tema.
+ */
+.selector-tema__control::after {
+  position: absolute;
+  top: 50%;
+  right: var(--espacio-3);
+  width: 0.45rem;
+  height: 0.45rem;
+  content: '';
+  border-right: 2px solid var(--texto-suave);
+  border-bottom: 2px solid var(--texto-suave);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+
 .selector-tema select {
+  appearance: none;
   min-height: 2.75rem;
-  padding: var(--espacio-2) var(--espacio-3);
+  padding: var(--espacio-2) 2.25rem var(--espacio-2) var(--espacio-3);
   font: inherit;
   color: var(--texto);
   background: var(--superficie);
