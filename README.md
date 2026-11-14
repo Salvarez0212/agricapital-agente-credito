@@ -10,7 +10,7 @@ Prueba técnica: un **agente de IA por WhatsApp** que atiende a clientes prefere
 | API REST para buscar clientes, BD relacional, validaciones   | [`backend/src`](backend/src) · [API](#api-rest)                                                                |
 | Capas, linter y formateador                                  | `routes → controllers → services → models` · oxlint + Prettier                                                 |
 | Panel: listado, filtro en tiempo real, detalle en modal      | [`frontend/src`](frontend/src) · [Panel](#el-panel)                                                            |
-| Ramas, PRs etiquetados con auto-revisión, al menos un issue  | PRs #1–#13 · issue #10 · [Flujo de trabajo](#flujo-de-trabajo-en-github)                                       |
+| Ramas, PRs etiquetados con auto-revisión, al menos un issue  | PRs #1–#14 · issue #10 · [Flujo de trabajo](#flujo-de-trabajo-en-github)                                       |
 
 ---
 
