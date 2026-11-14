@@ -1,4 +1,5 @@
 import { createApp } from './app.js';
+import type { WebhookMeta } from './channels/whatsapp/meta.js';
 import type { WebhookWhatsApp } from './channels/whatsapp/webhook.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
@@ -17,7 +18,10 @@ const server = app.listen(port, () => {
 async function apagar(senal: string) {
   logger.info(`${senal} recibido: apagando…`);
   server.close();
-  await (app.locals.webhookWhatsApp as WebhookWhatsApp | undefined)?.esperarPendientes();
+  await Promise.all([
+    (app.locals.webhookWhatsApp as WebhookWhatsApp | undefined)?.esperarPendientes(),
+    (app.locals.webhookMeta as WebhookMeta | undefined)?.esperarPendientes(),
+  ]);
   await prisma.$disconnect();
   process.exit(0);
 }
