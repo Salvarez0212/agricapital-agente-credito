@@ -20,7 +20,8 @@ function normalizar(texto: string): string {
 const PATRONES_PROMESA: RegExp[] = [
   /\b(tu|su)\s+(credito|solicitud|prestamo|desembolso)\s+(ya\s+)?(esta|fue|quedo|ha sido|sera|queda)\s+(aprobad|desembolsad|garantizad)/,
   /\b(te|le|les)\s+(aprobamos|aprobaron|aprobare|aprobaremos|vamos a aprobar|desembolsamos|desembolsaremos|vamos a desembolsar|consignamos|consignaremos|vamos a consignar)\b/,
-  /\b(estas|esta|quedaste|quedo|quedaron)\s+(pre-?)?aprobad[oa]s?\s+(tu|su|el|para)\b/,
+  // Sin "pre": "está preaprobado para ti" describe un cupo, no una aprobación.
+  /\b(estas|esta|quedaste|quedo|quedaron)\s+aprobad[oa]s?\s+(tu|su|el|para)\b/,
   /\b(estas|quedaste)\s+aprobad[oa]\b/,
   /\b(te|le)\s+garantiz/,
   /\b(aprobacion|desembolso|credito)\s+(esta\s+)?garantizad/,

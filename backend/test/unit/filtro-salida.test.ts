@@ -21,6 +21,8 @@ describe('filtro de salida: promesas', () => {
 
   it.each([
     'Tienes un cupo preaprobado de $8.000.000.',
+    'Tu cupo de $8.000.000 está preaprobado para ti.',
+    'Quedaste preaprobada para un cupo de $5.000.000.',
     'Un cupo preaprobado no es una aprobación: tu solicitud pasa por revisión.',
     'No puedo garantizar la aprobación, eso lo decide el equipo de crédito.',
     'Tu solicitud quedó registrada y está en revisión.',
