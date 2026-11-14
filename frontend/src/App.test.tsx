@@ -104,6 +104,11 @@ describe('Panel de solicitudes', () => {
       ['Tipo de cliente', 'Preferencial'],
       ['Radicada', expect.stringMatching(/14\/11\/2026/)],
     ]);
+    // El título de cada dato en móvil es el mismo de su columna en escritorio.
+    const columnas = within(tabla)
+      .getAllByRole('columnheader')
+      .map((th) => th.textContent);
+    expect(columnas.slice(1)).toEqual(etiquetas.map(([titulo]) => titulo));
   });
 
   it('filtra por cédula mientras se escribe, con una sola petición al terminar', async () => {

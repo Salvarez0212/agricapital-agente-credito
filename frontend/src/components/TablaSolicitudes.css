@@ -119,23 +119,22 @@
     border-radius: var(--radio);
   }
 
-  .tabla th,
-  .tabla td,
-  .tabla tbody tr:last-child > * {
+  /*
+   * Todas las celdas de la tarjeta usan selectores con la misma base (.tabla tbody tr > …)
+   * para que la especificidad no haga que la regla de escritorio pise la de móvil.
+   */
+  .tabla tbody tr > * {
     padding: 0;
     border-bottom: none;
   }
 
-  .tabla__nombre {
+  .tabla tbody tr > .tabla__nombre {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--espacio-2);
     padding-bottom: var(--espacio-3);
     margin-bottom: var(--espacio-3);
-  }
-
-  .tabla .tabla__nombre {
     border-bottom: 1px solid var(--borde);
   }
 
@@ -148,7 +147,7 @@
     margin-left: 0;
   }
 
-  .tabla td {
+  .tabla tbody tr > td {
     display: grid;
     grid-template-columns: 7.5rem 1fr;
     gap: var(--espacio-3);
