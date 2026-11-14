@@ -11,7 +11,7 @@ export function palabrasDeNombre(nombre: string): string[] {
 
 /**
  * ¿El nombre que dio la persona es compatible con el registrado?
- * Compatible = cada palabra que dio aparece en el nombre registrado.
+ * Compatible = al menos dos palabras y cada una aparece en el nombre registrado.
  * Así "Maria Rojas" encaja con "María Fernanda Rojas Gil" (puede omitir nombres o
  * apellidos), pero "María López" no (aporta un apellido que no está registrado).
  * Ignora tildes, mayúsculas y el orden.
@@ -19,5 +19,6 @@ export function palabrasDeNombre(nombre: string): string[] {
 export function nombresCoinciden(dado: string, registrado: string): boolean {
   const registradas = new Set(palabrasDeNombre(registrado));
   const dadas = palabrasDeNombre(dado);
-  return dadas.length > 0 && dadas.every((p) => registradas.has(p));
+  // Al menos dos palabras (nombre y apellido): "María" sola no identifica a nadie.
+  return dadas.length >= 2 && dadas.every((p) => registradas.has(p));
 }

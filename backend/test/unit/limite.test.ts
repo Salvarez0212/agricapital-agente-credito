@@ -19,3 +19,13 @@ describe('LimitadorPorClave', () => {
     expect(l.permitir('a', 1001)).toBe(true);
   });
 });
+
+describe('LimitadorPorClave.purgar', () => {
+  it('elimina las claves cuya ventana ya pasó', () => {
+    const l = new LimitadorPorClave(5, 1000);
+    l.permitir('viejo', 0);
+    l.permitir('reciente', 900);
+    l.purgar(1500);
+    expect(l.claves).toBe(1);
+  });
+});

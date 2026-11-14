@@ -18,6 +18,7 @@ describe('nombresCoinciden', () => {
     'Camila Torres', // otra persona
     'María López', // apellido que no está registrado
     'María Fernanda Rojas Gil Pérez', // agrega un apellido
+    'María', // una sola palabra no basta para considerarlo el mismo nombre
   ])('"%s" NO es compatible', (dado) => {
     expect(nombresCoinciden(dado, REGISTRADO)).toBe(false);
   });

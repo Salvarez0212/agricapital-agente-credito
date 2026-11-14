@@ -13,6 +13,7 @@ export class LimitadorPorClave {
 
   /** Registra un intento y devuelve false si la clave superó el límite. */
   permitir(clave: string, ahora = Date.now()): boolean {
+    if (this.registros.size > 10_000) this.purgar(ahora);
     const recientes = (this.registros.get(clave) ?? []).filter((t) => ahora - t < this.ventanaMs);
     if (recientes.length >= this.maximo) {
       this.registros.set(clave, recientes);
@@ -21,5 +22,16 @@ export class LimitadorPorClave {
     recientes.push(ahora);
     this.registros.set(clave, recientes);
     return true;
+  }
+
+  /** Elimina las claves sin intentos dentro de la ventana (evita que el mapa crezca sin límite). */
+  purgar(ahora = Date.now()): void {
+    for (const [clave, tiempos] of this.registros) {
+      if (tiempos.every((t) => ahora - t >= this.ventanaMs)) this.registros.delete(clave);
+    }
+  }
+
+  get claves(): number {
+    return this.registros.size;
   }
 }
