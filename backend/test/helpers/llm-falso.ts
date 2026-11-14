@@ -37,6 +37,18 @@ export function rechazo(): MensajeLlm {
 }
 
 /**
+ * Reglas que la API real exige al historial. El LLM falso las verifica para que
+ * los tests detecten historiales que en producción provocarían un 400.
+ */
+export function validarHistorial(messages: ParametrosLlm['messages']) {
+  messages.forEach((m, i) => {
+    const vacio =
+      typeof m.content === 'string' ? m.content.trim() === '' : (m.content?.length ?? 0) === 0;
+    if (vacio) throw new Error(`400 invalid_request_error: messages.${i} tiene contenido vacío`);
+  });
+}
+
+/**
  * LLM falso: devuelve respuestas programadas en orden y registra cada llamada
  * para que los tests inspeccionen qué recibió (historial, resultados de tools…).
  */
@@ -50,6 +62,7 @@ export class LlmFalso implements ClienteLlm {
   }
 
   async crearMensaje(params: ParametrosLlm): Promise<MensajeLlm> {
+    validarHistorial(params.messages);
     // Copia profunda: el agente sigue agregando mensajes al mismo arreglo.
     this.llamadas.push(structuredClone(params));
     const paso = this.pasos.shift();

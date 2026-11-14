@@ -233,6 +233,18 @@ describe('agente de crédito', () => {
       expect((await decir('algo raro')).respuesta).toBe(RESPUESTAS.noPuedoAyudar);
     });
 
+    it('después de un rechazo, la conversación sigue funcionando', async () => {
+      llm.programar(rechazo());
+      await decir('algo raro');
+
+      llm.programar(texto('Claro, te ayudo con tu crédito.'));
+      const salida = await decir('ok, quiero un crédito');
+
+      expect(salida.respuesta).toBe('Claro, te ayudo con tu crédito.');
+      const conversacion = await prisma.conversacion.findFirstOrThrow();
+      expect(conversacion.mensajes).not.toContainEqual({ role: 'assistant', content: [] });
+    });
+
     it(`corta el loop tras ${MAX_ITERACIONES} iteraciones de herramientas`, async () => {
       llm.programar(
         ...Array.from({ length: MAX_ITERACIONES }, () =>

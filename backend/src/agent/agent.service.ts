@@ -98,7 +98,11 @@ export function crearAgente(llm: ClienteLlm) {
       for (let i = 0; i < MAX_ITERACIONES; i++) {
         const mensaje = await llm.crearMensaje(parametros([...historial, ...nuevos]));
         // Se guarda el contenido completo (incluye bloques de thinking) sin modificarlo.
-        nuevos.push({ role: 'assistant', content: mensaje.content });
+        // Excepción: la API rechaza mensajes vacíos en el historial; un rechazo sin
+        // texto no se guarda, o la conversación quedaría bloqueada en cada turno.
+        if (mensaje.content.length > 0) {
+          nuevos.push({ role: 'assistant', content: mensaje.content });
+        }
 
         logger.debug(
           { stop: mensaje.stop_reason, usage: mensaje.usage, iteracion: i },
