@@ -1,0 +1,10 @@
+# Verificación determinista antes de subir código: typecheck + tests.
+# Los tests de integración necesitan Postgres (npm run db:up).
+# Para saltarla en una emergencia: git push --no-verify
+
+if ! (echo > /dev/tcp/localhost/5432) 2>/dev/null && ! nc -z localhost 5432 2>/dev/null; then
+  echo "pre-push: Postgres no responde en localhost:5432. Levántalo con 'npm run db:up'." >&2
+  exit 1
+fi
+
+npm run typecheck && npm test
