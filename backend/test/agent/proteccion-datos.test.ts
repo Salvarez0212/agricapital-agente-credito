@@ -41,9 +41,9 @@ describe('protección de datos de terceros', () => {
 
     expect(esError).toBe(false);
     expect(contenido).toEqual({ tipo: 'NUEVO' });
-    const texto = JSON.stringify(contenido);
-    expect(texto).not.toContain('María');
-    expect(texto).not.toContain('8000000');
+    const serializado = JSON.stringify(contenido);
+    expect(serializado).not.toContain('María');
+    expect(serializado).not.toContain('8000000');
   });
 
   it('la respuesta es idéntica a la de una cédula inexistente (no permite enumerar clientes)', async () => {
