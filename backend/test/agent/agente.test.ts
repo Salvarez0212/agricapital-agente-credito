@@ -144,6 +144,86 @@ describe('agente de crédito', () => {
     });
   });
 
+  describe('revocar la autorización', () => {
+    async function aceptarEIdentificar() {
+      llm.programar(
+        herramienta('registrar_consentimiento', { acepta: true }),
+        herramienta('identificar_cliente', { cedula: '1234567890' }),
+        texto('ok'),
+      );
+      await decir('acepto, 1234567890');
+    }
+
+    it('al revocar, la sesión olvida la cédula y deja de permitir consultas y solicitudes', async () => {
+      await aceptarEIdentificar();
+
+      llm.programar(
+        herramienta('registrar_consentimiento', { acepta: false }),
+        texto('Entendido.'),
+      );
+      await decir('ya no autorizo el uso de mis datos');
+
+      expect(llm.ultimoResultado().contenido).toMatchObject({ registrado: false, revocado: true });
+      const conversacion = await prisma.conversacion.findFirstOrThrow();
+      expect(conversacion).toMatchObject({
+        consentimientoAt: null,
+        cedula: null,
+        tipoCliente: null,
+      });
+
+      llm.programar(
+        herramienta('crear_solicitud', {
+          nombre_completo: 'Camila Torres',
+          municipio: 'Zipaquirá',
+          monto_solicitado: null,
+        }),
+        texto('ok'),
+      );
+      await decir('igual radícame');
+      expect(llm.ultimoResultado()).toMatchObject({ esError: true });
+      expect(await prisma.solicitud.count()).toBe(0);
+    });
+
+    it('si ya había radicado, la solicitud se mantiene y se informa el derecho de supresión', async () => {
+      await aceptarEIdentificar();
+      llm.programar(
+        herramienta('crear_solicitud', {
+          nombre_completo: 'Camila Torres',
+          municipio: 'Zipaquirá',
+          monto_solicitado: null,
+        }),
+        texto('Radicada.'),
+      );
+      await decir('sí, confirmo');
+
+      llm.programar(
+        herramienta('registrar_consentimiento', { acepta: false }),
+        texto('Entendido.'),
+      );
+      await decir('retiro mi autorización');
+
+      expect(String(llm.ultimoResultado().contenido.instruccion)).toMatch(/supresión/);
+      expect(await prisma.solicitud.count()).toBe(1);
+    });
+
+    it('puede volver a autorizar después de revocar', async () => {
+      await aceptarEIdentificar();
+      llm.programar(herramienta('registrar_consentimiento', { acepta: false }), texto('ok'));
+      await decir('no autorizo');
+
+      llm.programar(
+        herramienta('registrar_consentimiento', { acepta: true }),
+        herramienta('identificar_cliente', { cedula: '1234567890' }),
+        texto('ok'),
+      );
+      await decir('cambié de opinión, sí autorizo');
+
+      expect(llm.ultimoResultado()).toMatchObject({ esError: false });
+      const conversacion = await prisma.conversacion.findFirstOrThrow();
+      expect(conversacion.consentimientoAt).not.toBeNull();
+    });
+  });
+
   describe('crear_solicitud', () => {
     const datos = {
       nombre_completo: 'Camila Torres',
