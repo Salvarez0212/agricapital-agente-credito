@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Solicitud } from './api/solicitudes';
 import { DetalleSolicitud } from './components/DetalleSolicitud';
+import { EsqueletoTabla } from './components/EsqueletoTabla';
 import { Filtros } from './components/Filtros';
 import { Paginacion } from './components/Paginacion';
 import { SelectorTema } from './components/SelectorTema';
@@ -107,7 +108,9 @@ function App() {
         />
 
         {/* Región viva: anuncia el número de resultados al filtrar, sin mover el foco. */}
-        <output className="principal__resumen">{resultado && resumen(total, hayFiltros)}</output>
+        <output className="principal__resumen">
+          {resultado ? resumen(total, hayFiltros) : cargando ? 'Cargando solicitudes…' : null}
+        </output>
 
         {error && (
           <div className="aviso aviso--error" role="alert">
@@ -118,7 +121,9 @@ function App() {
           </div>
         )}
 
-        {!resultado && cargando && <p className="aviso">Cargando solicitudes…</p>}
+        {/* Primera carga: silueta de la tabla. En las siguientes se mantiene la tabla anterior
+            atenuada (aria-busy), para que no parpadee al filtrar o paginar. */}
+        {!resultado && cargando && <EsqueletoTabla />}
 
         {resultado && solicitudes.length === 0 && !error && (
           <div className="aviso">
