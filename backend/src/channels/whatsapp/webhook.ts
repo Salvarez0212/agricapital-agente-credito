@@ -85,10 +85,13 @@ export function crearWebhookWhatsApp({
     const params = (req.body ?? {}) as Record<string, string>;
 
     if (!twilio.validateRequest(authToken, firma, url, params)) {
+      // Sin datos del mensaje: solo lo necesario para depurar la configuración del webhook.
+      logger.warn({ url, conFirma: Boolean(firma) }, 'WhatsApp: firma de Twilio inválida');
       throw new AppError(403, 'FIRMA_INVALIDA', 'La petición no viene de Twilio');
     }
 
     const datos = mensajeTwilioSchema.parse(params);
+    logger.info({ messageSid: datos.MessageSid }, 'WhatsApp: mensaje recibido');
 
     // Respuesta inmediata con TwiML vacío: el mensaje real se envía después por la API.
     res.type('text/xml').send('<Response></Response>');
