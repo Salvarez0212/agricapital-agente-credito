@@ -3,6 +3,9 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { logger } from '../lib/logger.js';
 import { MutexPorClave } from '../lib/mutex.js';
 import { conversacionModel } from '../models/conversacion.model.js';
+import { crearGuardiaEntrada, type GuardiaEntrada } from './guardrails/entrada.js';
+import { LimitadorPorClave } from './guardrails/limite.js';
+import { revisarSalida, variantesPermitidas, type MotivoSalida } from './guardrails/salida.js';
 import { MODELO_AGENTE, type ClienteLlm, type ParametrosLlm } from './llm.js';
 import { SYSTEM_PROMPT } from './prompts/system-prompt.js';
 import { ejecutarHerramienta, HERRAMIENTAS, type ContextoConversacion } from './tools.js';
@@ -20,7 +23,47 @@ export const RESPUESTAS = {
     'Disculpa, con eso no te puedo ayudar. Puedo darte información sobre nuestro crédito o ayudarte a radicar una solicitud.',
   mensajeLargo: `Tu mensaje es muy largo. ¿Me lo puedes resumir en menos de ${MAX_LONGITUD_MENSAJE} caracteres?`,
   mensajeVacio: 'Por ahora solo puedo leer mensajes de texto. ¿Me escribes tu consulta?',
+  bloqueado:
+    'Solo puedo ayudarte con información sobre nuestro crédito o con la radicación de tu solicitud. ¿En qué te ayudo?',
+  limite:
+    'Recibimos muchos mensajes seguidos. Por favor espera unos minutos y vuelve a escribirnos.',
+  promesa:
+    'Tu solicitud queda en revisión: el equipo de crédito la evaluará y un asesor te contactará. Por este chat no puedo confirmar aprobaciones ni desembolsos.',
+  datosPersonales:
+    'Disculpa, no puedo compartir esa información. ¿Te ayudo con algo más sobre tu crédito?',
 } as const;
+
+/** Lo que queda en el historial en lugar de un mensaje bloqueado (no se guarda el ataque). */
+export const MARCADOR_BLOQUEADO = '[Mensaje omitido por la política de seguridad]';
+
+const RESPUESTA_POR_MOTIVO: Record<MotivoSalida, string> = {
+  PROMESA: RESPUESTAS.promesa,
+  DATOS_PERSONALES: RESPUESTAS.datosPersonales,
+};
+
+/** Límite por defecto: 15 mensajes cada 5 minutos por teléfono. */
+export const LIMITE_MENSAJES = { maximo: 15, ventanaMs: 5 * 60 * 1000 };
+
+const NUMEROS = /\d[\d.,]*\d/g;
+/** Números legítimos de la FAQ (montos, plazos): el filtro de salida no los trata como datos personales. */
+const NUMEROS_FAQ = SYSTEM_PROMPT.match(NUMEROS) ?? [];
+
+/**
+ * Números que ya conoce la conversación: los que escribió la propia persona y los
+ * que devolvieron las herramientas. Repetirlos no revela nada nuevo.
+ */
+function numerosConocidos(mensajes: Mensaje[]): string[] {
+  return mensajes.flatMap((m) => {
+    if (typeof m.content === 'string') {
+      return m.role === 'user' ? (m.content.match(NUMEROS) ?? []) : [];
+    }
+    return (m.content ?? []).flatMap((b) =>
+      b.type === 'tool_result' && typeof b.content === 'string'
+        ? (b.content.match(NUMEROS) ?? [])
+        : [],
+    );
+  });
+}
 
 export interface EntradaAgente {
   /** Teléfono del canal en E.164 (lo da WhatsApp, no la persona). */
@@ -58,11 +101,20 @@ function textoDe(content: Anthropic.Beta.BetaContentBlock[]): string {
     .join('\n\n');
 }
 
+export interface OpcionesAgente {
+  /** Guardia de entrada. Por defecto: solo heurísticas (sin llamada extra al modelo). */
+  guardia?: GuardiaEntrada;
+  limitador?: LimitadorPorClave;
+}
+
 /**
  * Crea el agente con un cliente LLM inyectado (real o falso en tests).
  */
-export function crearAgente(llm: ClienteLlm) {
+export function crearAgente(llm: ClienteLlm, opciones: OpcionesAgente = {}) {
   const mutex = new MutexPorClave();
+  const guardia = opciones.guardia ?? crearGuardiaEntrada();
+  const limitador =
+    opciones.limitador ?? new LimitadorPorClave(LIMITE_MENSAJES.maximo, LIMITE_MENSAJES.ventanaMs);
 
   async function turno(entrada: EntradaAgente): Promise<SalidaAgente> {
     const conversacion =
@@ -95,6 +147,24 @@ export function crearAgente(llm: ClienteLlm) {
       });
 
     try {
+      // Guardia de entrada: un intento de manipulación no llega al modelo principal,
+      // y en el historial queda un marcador en vez del texto del ataque.
+      const veredicto = await guardia.evaluar(entrada.texto);
+      if (veredicto.bloquear) {
+        logger.warn(
+          { motivo: veredicto.motivo, categoria: veredicto.categoria },
+          'Mensaje bloqueado por la guardia de entrada',
+        );
+        nuevos.splice(
+          0,
+          nuevos.length,
+          { role: 'user', content: MARCADOR_BLOQUEADO },
+          { role: 'assistant', content: [{ type: 'text', text: RESPUESTAS.bloqueado }] },
+        );
+        await guardar(true);
+        return { respuesta: RESPUESTAS.bloqueado, conversacionId: conversacion.id };
+      }
+
       for (let i = 0; i < MAX_ITERACIONES; i++) {
         const mensaje = await llm.crearMensaje(parametros([...historial, ...nuevos]));
         const cortadaEnHerramienta =
@@ -145,8 +215,31 @@ export function crearAgente(llm: ClienteLlm) {
           break;
         }
 
-        // end_turn, stop_sequence o max_tokens: se responde con el texto disponible.
-        respuesta = textoDe(mensaje.content) || RESPUESTAS.errorTecnico;
+        // end_turn, stop_sequence o max_tokens: se responde con el texto disponible,
+        // pasando antes por el filtro de salida.
+        const texto = textoDe(mensaje.content);
+        const motivo = texto
+          ? revisarSalida(
+              texto,
+              variantesPermitidas([
+                ctx.cedula,
+                ctx.telefono,
+                ...NUMEROS_FAQ,
+                ...numerosConocidos([...historial, ...nuevos]),
+              ]),
+            )
+          : null;
+        if (motivo) {
+          logger.warn({ motivo }, 'Filtro de salida: respuesta del modelo reemplazada');
+          respuesta = RESPUESTA_POR_MOTIVO[motivo];
+          // El historial refleja lo que la persona realmente recibió.
+          nuevos[nuevos.length - 1] = {
+            role: 'assistant',
+            content: [{ type: 'text', text: respuesta }],
+          };
+          break;
+        }
+        respuesta = texto || RESPUESTAS.errorTecnico;
         break;
       }
 
@@ -167,6 +260,10 @@ export function crearAgente(llm: ClienteLlm) {
       if (!texto) return { respuesta: RESPUESTAS.mensajeVacio, conversacionId: null };
       if (texto.length > MAX_LONGITUD_MENSAJE) {
         return { respuesta: RESPUESTAS.mensajeLargo, conversacionId: null };
+      }
+      if (!limitador.permitir(entrada.telefono)) {
+        logger.warn('Límite de mensajes alcanzado');
+        return { respuesta: RESPUESTAS.limite, conversacionId: null };
       }
       // Un mensaje a la vez por teléfono.
       return mutex.ejecutar(entrada.telefono, () => turno({ ...entrada, texto }));

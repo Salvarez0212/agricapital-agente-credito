@@ -34,7 +34,12 @@ describe('API de solicitudes', () => {
         cupoPreaprobado: 5_000_000,
       });
 
-      const res = await crear({ ...solicitudValida, cedula: '1010101010', telefono: '3000000101' });
+      const res = await crear({
+        ...solicitudValida,
+        cedula: '1010101010',
+        telefono: '3000000101',
+        nombreCompleto: 'María Fernanda Rojas Gil',
+      });
 
       expect(res.status).toBe(201);
       expect(res.body.data).toMatchObject({
@@ -52,6 +57,42 @@ describe('API de solicitudes', () => {
       expect(res.body.data.requiereVerificacion).toBe(true);
     });
 
+    it('marca requiereVerificacion si el nombre no coincide con el registrado', async () => {
+      await crearCliente({
+        cedula: '1010101010',
+        nombreCompleto: 'María Fernanda Rojas Gil',
+        telefono: '+573000000101',
+      });
+
+      const res = await crear({
+        ...solicitudValida,
+        cedula: '1010101010',
+        telefono: '3000000101', // mismo teléfono
+        nombreCompleto: 'Camila Andrea Torres', // otro nombre
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.requiereVerificacion).toBe(true);
+    });
+
+    it('no marca verificación si el nombre es compatible (sin tildes, abreviado)', async () => {
+      await crearCliente({
+        cedula: '1010101010',
+        nombreCompleto: 'María Fernanda Rojas Gil',
+        telefono: '+573000000101',
+      });
+
+      const res = await crear({
+        ...solicitudValida,
+        cedula: '1010101010',
+        telefono: '3000000101',
+        nombreCompleto: 'maria rojas',
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.requiereVerificacion).toBe(false);
+    });
+
     it('responde 409 si ya hay una solicitud en revisión para esa cédula', async () => {
       await crear(solicitudValida);
 
@@ -59,6 +100,17 @@ describe('API de solicitudes', () => {
 
       expect(res.status).toBe(409);
       expect(res.body.error.code).toBe('SOLICITUD_EN_REVISION');
+    });
+
+    it('la misma cédula desde otro teléfono sí se radica y ambas quedan para verificación', async () => {
+      const primera = await crear(solicitudValida);
+
+      const segunda = await crear({ ...solicitudValida, telefono: '3119998877' });
+
+      expect(segunda.status).toBe(201);
+      expect(segunda.body.data.requiereVerificacion).toBe(true);
+      const detalle = await request(app).get(`/api/solicitudes/${primera.body.data.id}`);
+      expect(detalle.body.data.requiereVerificacion).toBe(true);
     });
 
     it('con peticiones simultáneas de la misma cédula solo crea una', async () => {

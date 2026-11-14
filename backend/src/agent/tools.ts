@@ -137,14 +137,28 @@ async function identificarCliente(input: { cedula?: unknown }, ctx: ContextoConv
     return error('La cédula no es válida: debe tener entre 6 y 10 dígitos.');
   }
 
+  // Una sola cédula por conversación: evita que alguien pruebe varias cédulas.
+  if (ctx.cedula && ctx.cedula !== cedula.data) {
+    return error(
+      'Solo se puede consultar una cédula por conversación. Si la consulta es para otra persona, esa persona debe escribirnos desde su propio número.',
+    );
+  }
+
   const cliente = await clienteModel.findByCedula(cedula.data);
   const tipo = clasificarCliente(cliente);
+  // La identidad se verifica con el canal: el teléfono de WhatsApp debe ser el registrado.
+  const verificada = !cliente || cliente.telefono === ctx.telefono;
 
   ctx.cedula = cedula.data;
-  ctx.tipoCliente = tipo;
+  ctx.tipoCliente = tipo; // tipo real: se usa en el servidor, no se le muestra al modelo si no hay verificación
+
+  // Protección de datos de terceros: si el teléfono no coincide, se responde EXACTAMENTE
+  // igual que para una cédula que no existe. Así no se revela el nombre, el cupo, ni
+  // siquiera si esa cédula es cliente (evita enumerar clientes probando cédulas).
+  // La solicitud se puede radicar igual y queda con requiereVerificacion.
+  if (!cliente || !verificada) return ok({ tipo: 'NUEVO' });
 
   // Minimización: el modelo solo recibe lo necesario para el saludo.
-  if (!cliente) return ok({ tipo });
   return ok({
     tipo,
     nombre: primerNombre(cliente.nombreCompleto),
@@ -193,6 +207,8 @@ async function crearSolicitud(
       numero_radicado: solicitud.id.slice(0, 8).toUpperCase(),
     });
   } catch (e) {
+    // El servicio solo responde 409 si la solicitud en revisión es de este mismo
+    // teléfono: confirmarlo no revela datos de otra persona.
     if (e instanceof AppError && e.code === 'SOLICITUD_EN_REVISION') {
       return error(
         'Esta persona ya tiene una solicitud en revisión. No se puede radicar otra hasta que se resuelva; un asesor la contactará.',

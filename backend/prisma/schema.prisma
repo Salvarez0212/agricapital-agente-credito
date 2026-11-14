@@ -86,20 +86,20 @@ model Solicitud {
 /// Memoria del agente: una conversación de WhatsApp por teléfono.
 /// Si pasan más de 24 h sin mensajes, la siguiente interacción abre una nueva.
 model Conversacion {
-  id               String       @id @default(uuid()) @db.Uuid
+  id                  String       @id @default(uuid()) @db.Uuid
   /// Teléfono de WhatsApp (E.164). Es la identidad del canal, no la declara el usuario.
-  telefono         String       @db.VarChar(16)
+  telefono            String       @db.VarChar(16)
   /// Cédula que la persona dio en esta conversación (una sola por conversación).
-  cedula           String?      @db.VarChar(10)
-  tipoCliente      TipoCliente? @map("tipo_cliente")
+  cedula              String?      @db.VarChar(10)
+  tipoCliente         TipoCliente? @map("tipo_cliente")
   /// Momento en que aceptó el tratamiento de datos en esta conversación.
-  consentimientoAt DateTime?    @map("consentimiento_at")
-  solicitudId      String?      @map("solicitud_id") @db.Uuid
+  consentimientoAt    DateTime?    @map("consentimiento_at")
+  solicitudId         String?      @map("solicitud_id") @db.Uuid
   /// Historial en el formato de la API de Claude (append-only: nunca se edita).
-  mensajes         Json         @default("[]")
-  ultimoMensajeAt  DateTime     @default(now()) @map("ultimo_mensaje_at")
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
+  mensajes            Json         @default("[]")
+  ultimoMensajeAt     DateTime     @default(now()) @map("ultimo_mensaje_at")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
 
   @@index([telefono, ultimoMensajeAt])
   @@map("conversaciones")

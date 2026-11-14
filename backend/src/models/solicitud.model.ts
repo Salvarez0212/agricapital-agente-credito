@@ -18,10 +18,19 @@ export const solicitudModel = {
     return prisma.solicitud.findUnique({ where: { id } });
   },
 
-  /** Solicitud de esa cédula que aún está en revisión (si existe). */
-  findEnRevisionByCedula(cedula: string, db: Db = prisma): Promise<Solicitud | null> {
-    return db.solicitud.findFirst({
+  /** Solicitudes de esa cédula que aún están en revisión (de cualquier teléfono). */
+  findEnRevisionByCedula(cedula: string, db: Db = prisma): Promise<Solicitud[]> {
+    return db.solicitud.findMany({
       where: { cedula, estado: EstadoSolicitud.EN_REVISION },
+    });
+  },
+
+  /** Marca para verificación de identidad las solicitudes indicadas. */
+  async marcarParaVerificacion(ids: string[], db: Db = prisma): Promise<void> {
+    if (ids.length === 0) return;
+    await db.solicitud.updateMany({
+      where: { id: { in: ids } },
+      data: { requiereVerificacion: true },
     });
   },
 

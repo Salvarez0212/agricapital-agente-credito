@@ -1,6 +1,6 @@
 import express from 'express';
-import { crearAgente, type Agente } from './agent/agent.service.js';
-import { crearClienteAnthropic } from './agent/llm.js';
+import type { Agente } from './agent/agent.service.js';
+import { crearAgenteProduccion } from './agent/produccion.js';
 import { AppError } from './lib/app-error.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
 import { healthRouter } from './routes/health.routes.js';
@@ -21,7 +21,7 @@ export function createApp({ agente }: OpcionesApp = {}) {
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new AppError(503, 'AGENTE_NO_CONFIGURADO', 'Falta configurar ANTHROPIC_API_KEY');
     }
-    agenteReal = crearAgente(crearClienteAnthropic());
+    agenteReal = crearAgenteProduccion();
     return agenteReal;
   };
 
