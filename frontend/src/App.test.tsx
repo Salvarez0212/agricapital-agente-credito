@@ -234,19 +234,27 @@ describe('Panel de solicitudes', () => {
 
   it('muestra el error de la API y permite reintentar', async () => {
     let fallar = true;
+    let responder: (() => void) | undefined;
     simularApi(() =>
       fallar
         ? respuestaJson({ error: { code: 'INTERNAL', message: 'Error interno del servidor' } }, 500)
-        : respuestaJson(pagina([ANA])),
+        : new Promise<Response>((resolver) => {
+            responder = () => resolver(respuestaJson(pagina([ANA])));
+          }),
     );
-    render(<App />);
+    const { container } = render(<App />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Error interno del servidor');
 
     fallar = false;
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
-    expect(await screen.findByRole('table')).toBeInTheDocument();
+    // Mientras reintenta, vuelve la silueta de carga (aún no hay ninguna página).
+    expect(screen.getByText('Cargando solicitudes…')).toBeInTheDocument();
+    expect(container.querySelector('.esqueleto')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    await act(async () => responder?.());
+    expect(screen.getByRole('table')).toBeInTheDocument();
   });
 
   it('traduce un fallo de red a un mensaje claro', async () => {

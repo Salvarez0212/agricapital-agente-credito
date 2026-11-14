@@ -109,7 +109,7 @@ function App() {
 
         {/* Región viva: anuncia el número de resultados al filtrar, sin mover el foco. */}
         <output className="principal__resumen">
-          {resultado ? resumen(total, hayFiltros) : cargando && 'Cargando solicitudes…'}
+          {resultado ? resumen(total, hayFiltros) : cargando ? 'Cargando solicitudes…' : null}
         </output>
 
         {error && (

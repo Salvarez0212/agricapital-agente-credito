@@ -1,6 +1,10 @@
 import './EsqueletoTabla.css';
 
-/** Ancho de cada barra por columna (nombre, cédula, teléfono, municipio, tipo, fecha). */
+/**
+ * Ancho de cada barra por columna (nombre, cédula, teléfono, municipio, tipo, fecha).
+ * Debe tener las mismas columnas que TablaSolicitudes y que grid-template-columns en
+ * EsqueletoTabla.css; si la tabla cambia, se actualizan los tres.
+ */
 const COLUMNAS = ['70%', '60%', '75%', '55%', '45%', '80%'];
 /** Variación entre filas para que no parezca una cuadrícula perfecta. */
 const AJUSTE_FILA = [1, 0.8, 0.9, 0.75, 0.95, 0.85];
