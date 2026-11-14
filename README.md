@@ -22,13 +22,14 @@ Prueba técnica: un **agente de IA por WhatsApp** que atiende a clientes prefere
 4. [Probar](#probar)
 5. [El agente](#el-agente)
 6. [Guardrails: protección en capas](#guardrails-protección-en-capas)
-7. [API REST](#api-rest)
-8. [El panel](#el-panel)
-9. [WhatsApp real (Meta y Twilio)](#whatsapp-real-meta-y-twilio)
-10. [Decisiones](#decisiones)
-11. [Supuestos](#supuestos)
-12. [Flujo de trabajo en GitHub](#flujo-de-trabajo-en-github)
-13. [Retos, limitaciones y mejoras](#retos-limitaciones-y-mejoras)
+7. [Seguridad de la API y la infraestructura](#seguridad-de-la-api-y-la-infraestructura)
+8. [API REST](#api-rest)
+9. [El panel](#el-panel)
+10. [WhatsApp real (Meta y Twilio)](#whatsapp-real-meta-y-twilio)
+11. [Decisiones](#decisiones)
+12. [Supuestos](#supuestos)
+13. [Flujo de trabajo en GitHub](#flujo-de-trabajo-en-github)
+14. [Retos, limitaciones y mejoras](#retos-limitaciones-y-mejoras)
 
 ---
 
@@ -138,8 +139,8 @@ npm run db:up                                        # los tests del backend usa
 npm run format:check && npm run lint && npm run typecheck && npm test
 ```
 
-- **Backend (188 tests):** unitarios (clasificación, normalización, nombres, guardia, filtro de salida) e integración con Supertest contra una **base de datos aparte** (`agricapital_test`), que `globalSetup` crea y migra sola. El agente se prueba con un **LLM falso de respuestas programadas**: sin costo, sin red y determinista, y valida las mismas reglas de historial que la API real.
-- **Frontend (26 tests):** el panel completo con la API simulada (filtros, detalle, errores, paginación, respuestas tardías, móvil) y el selector de tema.
+- **Backend (198 tests):** unitarios (clasificación, normalización, nombres, guardia, filtro de salida), seguridad HTTP (cabeceras y límite de peticiones) e integración con Supertest contra una **base de datos aparte** (`agricapital_test`), que `globalSetup` crea y migra sola. El agente se prueba con un **LLM falso de respuestas programadas**: sin costo, sin red y determinista, y valida las mismas reglas de historial que la API real.
+- **Frontend (28 tests):** el panel completo con la API simulada (carga, filtros, detalle, errores, paginación, respuestas tardías, móvil) y el selector de tema.
 - **`npm run eval:guardia -w backend`:** evalúa el clasificador de prompt injection **contra el modelo real** con 12 mensajes legítimos y 12 ataques. Usa la API key.
 - **`npm run test:hooks`:** tests del hook de revisión IA con un `claude` falso.
 
@@ -174,6 +175,39 @@ Si una capa falla, la siguiente sigue protegiendo.
 | 6   | **Límite de mensajes**            | 15 mensajes cada 5 minutos por teléfono                                                                                                                                                                                                                |
 
 Además, **toda solicitud nace `EN_REVISION`**: la API rechaza un body que intente fijar `estado` o `tipoCliente`. Los logs (pino) **redactan** cédula, teléfono y nombre.
+
+## Seguridad de la API y la infraestructura
+
+Además de la protección del agente, esto es lo que protege a la API y a los datos, contrastado con una checklist estándar de seguridad para backends:
+
+| Práctica                               | Estado | Cómo                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Validación en el servidor              | ✅     | Zod en cada endpoint: tipo, formato, longitud y rango. El body de `POST /api/solicitudes` es estricto (si trae `estado` o `tipoCliente`, 400)                                                                                                                                                              |
+| Consultas parametrizadas               | ✅     | Todo pasa por Prisma. La única consulta SQL directa (el bloqueo contra duplicados) usa un template parametrizado                                                                                                                                                                                           |
+| Saneamiento de salidas (XSS)           | ✅     | La API solo devuelve JSON. El panel muestra todo con React, que escapa el contenido, y no usa `innerHTML`                                                                                                                                                                                                  |
+| Cabeceras de seguridad                 | ✅     | Helmet: `Content-Security-Policy`, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, HSTS. Sin `X-Powered-By`                                                                                                                                                                                               |
+| CORS                                   | ✅     | No está habilitado, que es lo más estricto: ningún sitio externo puede leer la API desde un navegador. El panel entra por el proxy de Vite                                                                                                                                                                 |
+| Límite de peticiones                   | ✅     | Por IP: 300/min en la API y 600/min en los webhooks (429 con `Retry-After`). El agente además limita a 15 mensajes cada 5 min por teléfono                                                                                                                                                                 |
+| Webhooks autenticados                  | ✅     | Firma HMAC de Meta y firma de Twilio, comparadas en tiempo constante; sin firma válida, 403                                                                                                                                                                                                                |
+| Aislamiento de red                     | 🟡     | La API y Postgres escuchan solo en `127.0.0.1`. **Ojo:** mientras corre el túnel para WhatsApp (`cloudflared --url`), este reenvía **todo** el puerto, no solo `/webhooks`: quien tenga la URL del túnel también llega a `/api`. Apagar el túnel cuando no se use; en producción, exponer solo `/webhooks` |
+| Errores genéricos                      | ✅     | Los 500 responden "Error interno del servidor" sin stack; el detalle va al log                                                                                                                                                                                                                             |
+| Logs sin datos sensibles               | ✅     | pino oculta cédula, teléfono y nombre. De Meta y Twilio solo se registran ids y códigos                                                                                                                                                                                                                    |
+| Secretos fuera del repo                | ✅     | Solo en `backend/.env` (ignorado por git). El revisor IA no puede leerlo                                                                                                                                                                                                                                   |
+| Auditoría de dependencias              | ✅     | `npm audit --omit=dev --audit-level=high` en un job propio del CI y Dependabot semanal (y de inmediato para avisos de seguridad)                                                                                                                                                                           |
+| Cifrado en tránsito                    | 🟡     | Lo externo ya va por HTTPS (túnel de Cloudflare, Meta, Twilio, Anthropic). En local es HTTP; en producción, TLS en el balanceador                                                                                                                                                                          |
+| Autenticación y autorización           | ❌     | El panel y la API no tienen login (supuesto de la prueba). Ver la mejora abajo                                                                                                                                                                                                                             |
+| Cifrado en reposo y gestor de secretos | ❌     | Dependen de dónde se despliegue. Ver la mejora abajo                                                                                                                                                                                                                                                       |
+
+### Para llevarlo a producción
+
+- **Autenticación con el SSO de la empresa** (OpenID Connect con Google Workspace, Microsoft Entra, Auth0…) con MFA o passkeys del proveedor y sesiones cortas. Así no se guardan contraseñas propias. Si algún día hicieran falta, irían con Argon2id.
+- **Autorización por roles (RBAC)**, verificada en cada endpoint: un asesor solo lee y un coordinador puede aprobar o rechazar. Cada cambio de estado queda auditado (quién, cuándo, desde qué estado).
+- **HTTPS en todo el camino**: TLS 1.2+ en el balanceador, redirección de HTTP y HSTS (Helmet ya envía la cabecera).
+- **Base de datos administrada en una subred privada** (RDS, Cloud SQL), con disco y backups cifrados, accesible solo desde la app.
+- **Secretos en un gestor** (AWS Secrets Manager, Vault, los secretos de la plataforma) en vez de `.env`, con rotación de las claves de Meta, Twilio y Anthropic.
+- **Límite de peticiones compartido** (Redis) si hay varias instancias; hoy vive en la memoria de cada proceso. Ajustar `trust proxy` al balanceador real: hoy confía solo en `127.0.0.1` (el túnel), y detrás de otro proxy todos los clientes compartirían un contador.
+- **Exponer a internet solo `/webhooks`** (reglas del proxy o del túnel). El panel y la API quedan en la red interna o detrás del SSO.
+- **Monitoreo y alertas**: picos de 429, firmas inválidas, mensajes bloqueados por la guardia (#10) y errores 500.
 
 ## API REST
 
@@ -290,9 +324,8 @@ El backend tiene dos canales que comparten el mismo procesador. Los dos necesita
   - El detalle completo está en los PRs #8 y #9.
 - **La guardia del modelo real no es la de los tests:** por eso existe `eval:guardia`, que mide falsos positivos y negativos con el modelo de verdad.
 - **Mejoras:**
-  - autenticación y roles en el panel y la API;
+  - lo necesario para producción: login con SSO, roles, TLS, secretos y base de datos administrada (ver [Para llevarlo a producción](#para-llevarlo-a-producción));
   - acciones del equipo de crédito (aprobar o rechazar) con auditoría;
   - actualización en vivo del panel;
   - auditoría de los mensajes bloqueados (#10);
-  - límite de mensajes compartido (Redis) si se escala a varias instancias;
   - plantillas aprobadas de WhatsApp para escribir fuera de la ventana de 24 h.
