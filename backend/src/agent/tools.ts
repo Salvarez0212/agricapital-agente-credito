@@ -2,7 +2,6 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { TipoCliente } from '../generated/prisma/enums.js';
 import { AppError } from '../lib/app-error.js';
 import { clienteModel } from '../models/cliente.model.js';
-import { solicitudModel } from '../models/solicitud.model.js';
 import { cedulaSchema } from '../schemas/common.schema.js';
 import { crearSolicitudSchema } from '../schemas/solicitud.schema.js';
 import { clasificarCliente } from '../services/cliente.service.js';
@@ -16,11 +15,6 @@ export interface ContextoConversacion {
   telefono: string;
   cedula: string | null;
   tipoCliente: TipoCliente | null;
-  /**
-   * true si el teléfono del canal coincide con el registrado para la cédula (o la
-   * cédula no es de un cliente). Con false nunca se revelan datos del titular.
-   */
-  identidadVerificada: boolean;
   consentimientoAt: Date | null;
   solicitudId: string | null;
 }
@@ -113,7 +107,6 @@ function registrarConsentimiento(input: { acepta?: unknown }, ctx: ContextoConve
     ctx.consentimientoAt = null;
     ctx.cedula = null;
     ctx.tipoCliente = null;
-    ctx.identidadVerificada = false;
     return ok({
       registrado: false,
       ...(revocado && { revocado: true }),
@@ -158,7 +151,6 @@ async function identificarCliente(input: { cedula?: unknown }, ctx: ContextoConv
 
   ctx.cedula = cedula.data;
   ctx.tipoCliente = tipo; // tipo real: se usa en el servidor, no se le muestra al modelo si no hay verificación
-  ctx.identidadVerificada = verificada;
 
   // Protección de datos de terceros: si el teléfono no coincide, se responde EXACTAMENTE
   // igual que para una cédula que no existe. Así no se revela el nombre, el cupo, ni
@@ -215,16 +207,9 @@ async function crearSolicitud(
       numero_radicado: solicitud.id.slice(0, 8).toUpperCase(),
     });
   } catch (e) {
+    // El servicio solo responde 409 si la solicitud en revisión es de este mismo
+    // teléfono: confirmarlo no revela datos de otra persona.
     if (e instanceof AppError && e.code === 'SOLICITUD_EN_REVISION') {
-      // Solo se confirma que existe una solicitud en revisión si es de este mismo
-      // teléfono. Si no (sea o no la cédula de un cliente), mensaje genérico: decirlo
-      // revelaría datos de otra persona y permitiría sondear cédulas.
-      const pendiente = await solicitudModel.findEnRevisionByCedula(ctx.cedula);
-      if (pendiente?.telefono !== ctx.telefono) {
-        return error(
-          'No fue posible radicar la solicitud por este medio. Indica a la persona que un asesor puede ayudarle por los canales oficiales, sin dar más detalles.',
-        );
-      }
       return error(
         'Esta persona ya tiene una solicitud en revisión. No se puede radicar otra hasta que se resuelva; un asesor la contactará.',
       );

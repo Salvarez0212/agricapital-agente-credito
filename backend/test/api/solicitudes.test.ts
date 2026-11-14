@@ -102,6 +102,17 @@ describe('API de solicitudes', () => {
       expect(res.body.error.code).toBe('SOLICITUD_EN_REVISION');
     });
 
+    it('la misma cédula desde otro teléfono sí se radica y ambas quedan para verificación', async () => {
+      const primera = await crear(solicitudValida);
+
+      const segunda = await crear({ ...solicitudValida, telefono: '3119998877' });
+
+      expect(segunda.status).toBe(201);
+      expect(segunda.body.data.requiereVerificacion).toBe(true);
+      const detalle = await request(app).get(`/api/solicitudes/${primera.body.data.id}`);
+      expect(detalle.body.data.requiereVerificacion).toBe(true);
+    });
+
     it('con peticiones simultáneas de la misma cédula solo crea una', async () => {
       const respuestas = await Promise.all(Array.from({ length: 5 }, () => crear(solicitudValida)));
       const codigos = respuestas.map((r) => r.status).sort();

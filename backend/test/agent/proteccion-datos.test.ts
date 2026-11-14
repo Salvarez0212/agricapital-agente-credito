@@ -89,60 +89,45 @@ describe('protección de datos de terceros', () => {
     });
   });
 
-  it('sin verificación no confirma que la cédula tenga una solicitud en revisión', async () => {
-    await prisma.solicitud.create({
-      data: {
-        cedula: MARIA.cedula,
-        nombreCompleto: MARIA.nombreCompleto,
-        telefono: MARIA.telefono,
-        municipio: 'Villavicencio',
-        tipoCliente: 'PREFERENCIAL',
-        consentimientoDatosAt: new Date(),
-      },
-    });
-    await identificar(MARIA.cedula);
-    llm.programar(
-      herramienta('crear_solicitud', {
-        nombre_completo: 'Carlos Pérez Ruiz',
-        municipio: 'Neiva',
-        monto_solicitado: null,
-      }),
-      texto('No fue posible.'),
-    );
+  it.each([
+    ['de un cliente (María)', MARIA.cedula, MARIA.telefono, 'PREFERENCIAL' as const],
+    ['de una persona NO cliente (Ana)', '3030303030', '+573005550000', 'NUEVO' as const],
+  ])(
+    'con la cédula %s y una solicitud abierta: desde otro teléfono radica sin revelar nada y ambas quedan para verificación',
+    async (_desc, cedula, telefonoTitular, tipo) => {
+      const delTitular = await prisma.solicitud.create({
+        data: {
+          cedula,
+          nombreCompleto: 'Titular Real',
+          telefono: telefonoTitular,
+          municipio: 'Tunja',
+          tipoCliente: tipo,
+          consentimientoDatosAt: new Date(),
+        },
+      });
+      await identificar(cedula); // escribe un tercero desde TEL_ATACANTE
+      llm.programar(
+        herramienta('crear_solicitud', {
+          nombre_completo: 'Carlos Pérez Ruiz',
+          municipio: 'Neiva',
+          monto_solicitado: null,
+        }),
+        texto('Radicada.'),
+      );
 
-    await decir('sí');
+      await decir('sí');
 
-    const { contenido, esError } = llm.ultimoResultado();
-    expect(esError).toBe(true);
-    expect(String(contenido.error)).not.toMatch(/revisión/);
-  });
-
-  it('no revela la solicitud en revisión de una persona NO cliente desde otro teléfono', async () => {
-    // Ana radicó como persona nueva (no está en clientes) desde su teléfono.
-    await prisma.solicitud.create({
-      data: {
-        cedula: '3030303030',
-        nombreCompleto: 'Ana Lucía Pardo',
-        telefono: '+573005550000',
-        municipio: 'Tunja',
-        tipoCliente: 'NUEVO',
-        consentimientoDatosAt: new Date(),
-      },
-    });
-    await identificar('3030303030'); // escribe un tercero desde TEL_ATACANTE
-    llm.programar(
-      herramienta('crear_solicitud', {
-        nombre_completo: 'Carlos Pérez Ruiz',
-        municipio: 'Neiva',
-        monto_solicitado: null,
-      }),
-      texto('No fue posible.'),
-    );
-
-    await decir('sí');
-
-    expect(String(llm.ultimoResultado().contenido.error)).not.toMatch(/revisión/);
-  });
+      // Recibe lo mismo que cualquier persona: no se entera de la solicitud existente.
+      const { contenido, esError } = llm.ultimoResultado();
+      expect(esError).toBe(false);
+      expect(contenido).toMatchObject({ registrada: true, estado: 'EN_REVISION' });
+      // El asesor ve ambas marcadas, sin importar cuál llegó primero.
+      const todas = await prisma.solicitud.findMany({ where: { cedula } });
+      expect(todas).toHaveLength(2);
+      expect(todas.every((s) => s.requiereVerificacion)).toBe(true);
+      expect(todas.map((s) => s.id)).toContain(delTitular.id);
+    },
+  );
 
   it('a la propia persona sí le confirma que ya tiene una solicitud en revisión', async () => {
     await prisma.solicitud.create({

@@ -126,7 +126,6 @@ export function crearAgente(llm: ClienteLlm, opciones: OpcionesAgente = {}) {
       telefono: conversacion.telefono,
       cedula: conversacion.cedula,
       tipoCliente: conversacion.tipoCliente,
-      identidadVerificada: conversacion.identidadVerificada,
       consentimientoAt: conversacion.consentimientoAt,
       solicitudId: conversacion.solicitudId,
     };
@@ -139,7 +138,6 @@ export function crearAgente(llm: ClienteLlm, opciones: OpcionesAgente = {}) {
       conversacionModel.update(conversacion.id, {
         cedula: ctx.cedula,
         tipoCliente: ctx.tipoCliente,
-        identidadVerificada: ctx.identidadVerificada,
         consentimientoAt: ctx.consentimientoAt,
         solicitudId: ctx.solicitudId,
         ultimoMensajeAt: new Date(),

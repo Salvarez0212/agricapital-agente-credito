@@ -94,9 +94,6 @@ model Conversacion {
   tipoCliente         TipoCliente? @map("tipo_cliente")
   /// Momento en que aceptó el tratamiento de datos en esta conversación.
   consentimientoAt    DateTime?    @map("consentimiento_at")
-  /// true si el teléfono de WhatsApp coincide con el registrado para la cédula
-  /// (o la cédula no es de un cliente). Si es false, no se revelan datos del titular.
-  identidadVerificada Boolean      @default(false) @map("identidad_verificada")
   solicitudId         String?      @map("solicitud_id") @db.Uuid
   /// Historial en el formato de la API de Claude (append-only: nunca se edita).
   mensajes            Json         @default("[]")
