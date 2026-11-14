@@ -1,4 +1,43 @@
+/* Tokens de diseño: un solo lugar para colores, espacios y tipografía. */
 :root {
+  color-scheme: light dark;
+
+  --fondo: #f6f8fa;
+  --superficie: #ffffff;
+  --superficie-alt: #f1f4f7;
+  --borde: #dde3ea;
+  --borde-fuerte: #b7c1cc;
+  --texto: #1b2430;
+  --texto-suave: #52606d;
+  --enlace: #1d5fbf;
+  --resaltado: #eef4fd;
+  --primario: #1f6f43;
+  --primario-hover: #185a36;
+  --foco: #1d5fbf;
+  --alerta: #8a4b00;
+  --alerta-fondo: #fff4e0;
+  --error: #b42318;
+  --error-fondo: #fef3f2;
+  --tipo-preferencial: #1f6f43;
+  --tipo-preferencial-fondo: #e7f5ec;
+  --tipo-antiguo: #1d4f91;
+  --tipo-antiguo-fondo: #e8f0fb;
+  --tipo-nuevo: #5b4a8b;
+  --tipo-nuevo-fondo: #f0edf8;
+  --sombra: 0 20px 45px rgb(15 23 42 / 0.18);
+
+  --espacio-1: 0.25rem;
+  --espacio-2: 0.5rem;
+  --espacio-3: 0.75rem;
+  --espacio-4: 1rem;
+  --espacio-5: 1.5rem;
+  --espacio-6: 2rem;
+  --radio: 0.75rem;
+  --radio-sm: 0.5rem;
+  --texto-xs: 0.75rem;
+  --texto-sm: 0.875rem;
+  --texto-xl: 1.375rem;
+
   font-family:
     system-ui,
     -apple-system,
@@ -6,8 +45,36 @@
     Roboto,
     sans-serif;
   line-height: 1.5;
-  color: #1f2933;
-  background-color: #f7f9fb;
+  color: var(--texto);
+  background-color: var(--fondo);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #0f141a;
+    --superficie: #171e26;
+    --superficie-alt: #1d2630;
+    --borde: #2a3540;
+    --borde-fuerte: #3d4a57;
+    --texto: #e6ebf0;
+    --texto-suave: #a3b1bf;
+    --enlace: #7fb0ff;
+    --resaltado: #1c2a3b;
+    --primario: #3fa36b;
+    --primario-hover: #4cb87b;
+    --foco: #7fb0ff;
+    --alerta: #ffc46b;
+    --alerta-fondo: #3a2a10;
+    --error: #ff9b91;
+    --error-fondo: #3b1a17;
+    --tipo-preferencial: #7fd6a3;
+    --tipo-preferencial-fondo: #15301f;
+    --tipo-antiguo: #9cc2ff;
+    --tipo-antiguo-fondo: #162540;
+    --tipo-nuevo: #c7b8f2;
+    --tipo-nuevo-fondo: #262040;
+    --sombra: 0 20px 45px rgb(0 0 0 / 0.5);
+  }
 }
 
 *,
@@ -18,4 +85,65 @@
 
 body {
   margin: 0;
+}
+
+:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Visible para lectores de pantalla, oculto en pantalla. */
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: var(--espacio-2) var(--espacio-4);
+  font: inherit;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--primario);
+  border: 1px solid transparent;
+  border-radius: var(--radio-sm);
+  cursor: pointer;
+}
+
+.boton:hover:not(:disabled) {
+  background: var(--primario-hover);
+}
+
+.boton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.boton--secundario {
+  color: var(--texto);
+  background: var(--superficie);
+  border-color: var(--borde-fuerte);
+}
+
+.boton--secundario:hover:not(:disabled) {
+  background: var(--superficie-alt);
 }
