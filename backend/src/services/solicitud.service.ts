@@ -3,6 +3,7 @@ import { AppError } from '../lib/app-error.js';
 import { nombresCoinciden } from '../lib/nombres.js';
 import { prisma } from '../lib/prisma.js';
 import { clienteModel } from '../models/cliente.model.js';
+import { conversacionModel } from '../models/conversacion.model.js';
 import { solicitudModel, type FiltroSolicitudes } from '../models/solicitud.model.js';
 import type { Paginacion } from '../models/types.js';
 import type { CrearSolicitudInput } from '../schemas/solicitud.schema.js';
@@ -68,15 +69,25 @@ export const solicitudService = {
     });
   },
 
+  /** La solicitud y cuántos mensajes bloqueó la guardia en la conversación que la radicó. */
   async obtener(id: string) {
     const solicitud = await solicitudModel.findById(id);
     if (!solicitud) {
       throw new AppError(404, 'SOLICITUD_NO_ENCONTRADA', 'No existe una solicitud con ese id');
     }
-    return solicitud;
+    const bloqueados = await conversacionModel.contarBloqueadosPorSolicitud([id]);
+    return { solicitud, intentosBloqueados: bloqueados.get(id) ?? 0 };
   },
 
-  listar(filtro: FiltroSolicitudes, paginacion: Paginacion) {
-    return solicitudModel.list(filtro, paginacion);
+  async listar(filtro: FiltroSolicitudes, paginacion: Paginacion) {
+    const { data, total } = await solicitudModel.list(filtro, paginacion);
+    const bloqueados = await conversacionModel.contarBloqueadosPorSolicitud(data.map((s) => s.id));
+    return {
+      data: data.map((solicitud) => ({
+        solicitud,
+        intentosBloqueados: bloqueados.get(solicitud.id) ?? 0,
+      })),
+      total,
+    };
   },
 };

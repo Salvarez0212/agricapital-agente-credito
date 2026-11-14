@@ -1,4 +1,5 @@
 import type { Conversacion, Prisma } from '../generated/prisma/client.js';
+import { MARCADOR_BLOQUEADO } from '../lib/marcadores.js';
 import { prisma } from '../lib/prisma.js';
 
 /**
@@ -29,5 +30,22 @@ export const conversacionModel = {
 
   update(id: string, data: Prisma.ConversacionUpdateInput): Promise<Conversacion> {
     return prisma.conversacion.update({ where: { id }, data });
+  },
+
+  /**
+   * Cuántos mensajes bloqueó la guardia de entrada en la conversación que radicó cada
+   * solicitud. Solo cuenta los marcadores: el texto bloqueado nunca se guarda aquí.
+   * Las solicitudes sin bloqueos (o radicadas por la API) no aparecen en el mapa.
+   */
+  async contarBloqueadosPorSolicitud(solicitudIds: string[]): Promise<Map<string, number>> {
+    if (solicitudIds.length === 0) return new Map();
+    const filas = await prisma.$queryRaw<{ solicitudId: string; bloqueados: number }[]>`
+      SELECT c.solicitud_id::text AS "solicitudId", count(*)::int AS bloqueados
+      FROM conversaciones c, jsonb_array_elements(c.mensajes) AS m
+      WHERE c.solicitud_id = ANY(${solicitudIds}::uuid[])
+        AND m->>'role' = 'user'
+        AND m->>'content' = ${MARCADOR_BLOQUEADO}
+      GROUP BY c.solicitud_id`;
+    return new Map(filas.map((f) => [f.solicitudId, f.bloqueados]));
   },
 };

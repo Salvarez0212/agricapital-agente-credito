@@ -21,13 +21,18 @@ export const solicitudController = {
 
   async obtener(req: Request, res: Response) {
     const { id } = solicitudIdParamsSchema.parse(req.params);
-    const solicitud = await solicitudService.obtener(id);
-    res.json({ data: serializarSolicitud(solicitud) });
+    const { solicitud, intentosBloqueados } = await solicitudService.obtener(id);
+    res.json({ data: serializarSolicitud(solicitud, intentosBloqueados) });
   },
 
   async listar(req: Request, res: Response) {
     const { page, pageSize, cedula, telefono } = listarSolicitudesQuerySchema.parse(req.query);
     const { data, total } = await solicitudService.listar({ cedula, telefono }, { page, pageSize });
-    res.json({ data: data.map(serializarSolicitud), meta: meta(page, pageSize, total) });
+    res.json({
+      data: data.map(({ solicitud, intentosBloqueados }) =>
+        serializarSolicitud(solicitud, intentosBloqueados),
+      ),
+      meta: meta(page, pageSize, total),
+    });
   },
 };

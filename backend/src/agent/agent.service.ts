@@ -9,6 +9,7 @@ import { revisarSalida, variantesPermitidas, type MotivoSalida } from './guardra
 import { MODELO_AGENTE, type ClienteLlm, type ParametrosLlm } from './llm.js';
 import { SYSTEM_PROMPT } from './prompts/system-prompt.js';
 import { ejecutarHerramienta, HERRAMIENTAS, type ContextoConversacion } from './tools.js';
+import { MARCADOR_BLOQUEADO } from '../lib/marcadores.js';
 
 type Mensaje = Anthropic.Beta.BetaMessageParam;
 
@@ -33,8 +34,7 @@ export const RESPUESTAS = {
     'Disculpa, no puedo compartir esa información. ¿Te ayudo con algo más sobre tu crédito?',
 } as const;
 
-/** Lo que queda en el historial en lugar de un mensaje bloqueado (no se guarda el ataque). */
-export const MARCADOR_BLOQUEADO = '[Mensaje omitido por la política de seguridad]';
+export { MARCADOR_BLOQUEADO };
 
 const RESPUESTA_POR_MOTIVO: Record<MotivoSalida, string> = {
   PROMESA: RESPUESTAS.promesa,
