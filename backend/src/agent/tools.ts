@@ -15,6 +15,11 @@ export interface ContextoConversacion {
   telefono: string;
   cedula: string | null;
   tipoCliente: TipoCliente | null;
+  /**
+   * true si el teléfono del canal coincide con el registrado para la cédula (o la
+   * cédula no es de un cliente). Con false nunca se revelan datos del titular.
+   */
+  identidadVerificada: boolean;
   consentimientoAt: Date | null;
   solicitudId: string | null;
 }
@@ -107,6 +112,7 @@ function registrarConsentimiento(input: { acepta?: unknown }, ctx: ContextoConve
     ctx.consentimientoAt = null;
     ctx.cedula = null;
     ctx.tipoCliente = null;
+    ctx.identidadVerificada = false;
     return ok({
       registrado: false,
       ...(revocado && { revocado: true }),
@@ -137,14 +143,29 @@ async function identificarCliente(input: { cedula?: unknown }, ctx: ContextoConv
     return error('La cédula no es válida: debe tener entre 6 y 10 dígitos.');
   }
 
+  // Una sola cédula por conversación: evita que alguien pruebe varias cédulas.
+  if (ctx.cedula && ctx.cedula !== cedula.data) {
+    return error(
+      'Solo se puede consultar una cédula por conversación. Si la consulta es para otra persona, esa persona debe escribirnos desde su propio número.',
+    );
+  }
+
   const cliente = await clienteModel.findByCedula(cedula.data);
   const tipo = clasificarCliente(cliente);
+  // La identidad se verifica con el canal: el teléfono de WhatsApp debe ser el registrado.
+  const verificada = !cliente || cliente.telefono === ctx.telefono;
 
   ctx.cedula = cedula.data;
-  ctx.tipoCliente = tipo;
+  ctx.tipoCliente = tipo; // tipo real: se usa en el servidor, no se le muestra al modelo si no hay verificación
+  ctx.identidadVerificada = verificada;
+
+  // Protección de datos de terceros: si el teléfono no coincide, se responde EXACTAMENTE
+  // igual que para una cédula que no existe. Así no se revela el nombre, el cupo, ni
+  // siquiera si esa cédula es cliente (evita enumerar clientes probando cédulas).
+  // La solicitud se puede radicar igual y queda con requiereVerificacion.
+  if (!cliente || !verificada) return ok({ tipo: 'NUEVO' });
 
   // Minimización: el modelo solo recibe lo necesario para el saludo.
-  if (!cliente) return ok({ tipo });
   return ok({
     tipo,
     nombre: primerNombre(cliente.nombreCompleto),
@@ -194,6 +215,12 @@ async function crearSolicitud(
     });
   } catch (e) {
     if (e instanceof AppError && e.code === 'SOLICITUD_EN_REVISION') {
+      // Sin verificación no se confirma que esa cédula tenga una solicitud.
+      if (!ctx.identidadVerificada) {
+        return error(
+          'No fue posible radicar la solicitud por este medio. Indica a la persona que un asesor puede ayudarle por los canales oficiales, sin dar más detalles.',
+        );
+      }
       return error(
         'Esta persona ya tiene una solicitud en revisión. No se puede radicar otra hasta que se resuelva; un asesor la contactará.',
       );
