@@ -23,3 +23,6 @@ npm-debug.log*
 
 # Cliente de Prisma generado (se regenera con `npm install`)
 backend/src/generated/
+
+# Informes locales de la revisión IA previa a cada PR
+.reviews/
