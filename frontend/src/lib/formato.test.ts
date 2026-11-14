@@ -5,6 +5,7 @@ import {
   formatearMonto,
   formatearTelefono,
   soloDigitos,
+  textoIntentos,
 } from './formato';
 
 describe('formato', () => {
@@ -31,5 +32,10 @@ describe('formato', () => {
   it('deja solo los dígitos de lo que escribe la persona', () => {
     expect(soloDigitos('+57 300-123.45')).toBe('5730012345');
     expect(soloDigitos('abc')).toBe('');
+  });
+
+  it('concuerda el número de intentos bloqueados', () => {
+    expect(textoIntentos(1)).toBe('1 intento bloqueado');
+    expect(textoIntentos(4)).toBe('4 intentos bloqueados');
   });
 });

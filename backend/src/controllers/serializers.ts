@@ -17,7 +17,11 @@ export function serializarCliente(cliente: Cliente, tipo: TipoCliente) {
   };
 }
 
-export function serializarSolicitud(solicitud: Solicitud) {
+/**
+ * `intentosBloqueados`: mensajes que la guardia de entrada bloqueó en la conversación
+ * que radicó la solicitud. Es solo el número, nunca el texto (ver issue #10).
+ */
+export function serializarSolicitud(solicitud: Solicitud, intentosBloqueados = 0) {
   return {
     id: solicitud.id,
     cedula: solicitud.cedula,
@@ -29,6 +33,7 @@ export function serializarSolicitud(solicitud: Solicitud) {
     canal: solicitud.canal,
     montoSolicitado: solicitud.montoSolicitado?.toNumber() ?? null,
     requiereVerificacion: solicitud.requiereVerificacion,
+    intentosBloqueados,
     consentimientoDatosAt: solicitud.consentimientoDatosAt.toISOString(),
     createdAt: solicitud.createdAt.toISOString(),
     updatedAt: solicitud.updatedAt.toISOString(),

@@ -1,6 +1,8 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
+import { MARCADOR_BLOQUEADO } from '../../src/lib/marcadores.js';
+import { prisma } from '../../src/lib/prisma.js';
 import { crearCliente, limpiarBd, solicitudValida } from '../helpers/db.js';
 
 const app = createApp();
@@ -190,6 +192,57 @@ describe('API de solicitudes', () => {
     it('responde 400 si el id no es un UUID', async () => {
       const res = await request(app).get('/api/solicitudes/123');
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('intentos bloqueados por la guardia', () => {
+    /** Conversación del agente que radicó la solicitud, con los mensajes indicados. */
+    function conversacion(solicitudId: string, mensajes: object[]) {
+      return prisma.conversacion.create({
+        data: { telefono: '+573000000301', solicitudId, mensajes },
+      });
+    }
+
+    it('cuenta los mensajes bloqueados en la conversación que radicó la solicitud', async () => {
+      const conBloqueos = (await crear(solicitudValida)).body.data;
+      const sinBloqueos = (
+        await crear({ ...solicitudValida, cedula: '79888777', telefono: '3109998877' })
+      ).body.data;
+      await conversacion(conBloqueos.id, [
+        { role: 'user', content: 'Hola' },
+        { role: 'user', content: MARCADOR_BLOQUEADO },
+        { role: 'assistant', content: [{ type: 'text', text: 'No puedo ayudarte con eso.' }] },
+        { role: 'user', content: MARCADOR_BLOQUEADO },
+      ]);
+      await conversacion(sinBloqueos.id, [{ role: 'user', content: 'Hola' }]);
+
+      const lista = await request(app).get('/api/solicitudes');
+      const intentos = Object.fromEntries(
+        lista.body.data.map((s: { id: string; intentosBloqueados: number }) => [
+          s.id,
+          s.intentosBloqueados,
+        ]),
+      );
+      expect(intentos).toEqual({ [conBloqueos.id]: 2, [sinBloqueos.id]: 0 });
+
+      const detalle = await request(app).get(`/api/solicitudes/${conBloqueos.id}`);
+      expect(detalle.body.data.intentosBloqueados).toBe(2);
+    });
+
+    it('nunca expone el texto bloqueado, solo el número', async () => {
+      const { id } = (await crear(solicitudValida)).body.data;
+      await conversacion(id, [{ role: 'user', content: MARCADOR_BLOQUEADO }]);
+
+      const res = await request(app).get(`/api/solicitudes/${id}`);
+
+      expect(JSON.stringify(res.body)).not.toContain(MARCADOR_BLOQUEADO);
+      expect(res.body.data.intentosBloqueados).toBe(1);
+    });
+
+    it('una solicitud radicada por la API (sin conversación) tiene 0', async () => {
+      const res = await crear(solicitudValida);
+
+      expect(res.body.data.intentosBloqueados).toBe(0);
     });
   });
 });

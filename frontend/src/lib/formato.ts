@@ -53,3 +53,8 @@ export function formatearMonto(monto: number | null): string {
 export function soloDigitos(texto: string): string {
   return texto.replace(/\D/g, '');
 }
+
+/** "1 intento bloqueado" / "3 intentos bloqueados". */
+export function textoIntentos(cantidad: number): string {
+  return cantidad === 1 ? '1 intento bloqueado' : `${cantidad} intentos bloqueados`;
+}

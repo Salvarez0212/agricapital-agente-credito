@@ -7,6 +7,7 @@ import {
   formatearTelefono,
   NOMBRE_CANAL,
   NOMBRE_ESTADO,
+  textoIntentos,
 } from '../lib/formato';
 import { EtiquetaTipo } from './Etiquetas';
 import './DetalleSolicitud.css';
@@ -61,6 +62,19 @@ export function DetalleSolicitud({ solicitud, onCerrar }: Props) {
             </p>
           )}
 
+          {solicitud.intentosBloqueados > 0 && (
+            <p className="detalle__alerta detalle__alerta--peligro" role="note">
+              <strong>{textoIntentos(solicitud.intentosBloqueados)}.</strong> En esta conversación
+              la guardia de seguridad detuvo{' '}
+              {solicitud.intentosBloqueados === 1
+                ? 'un mensaje que parecía intentar'
+                : 'mensajes que parecían intentar'}{' '}
+              manipular al agente (por ejemplo, pedirle sus instrucciones o datos de otras personas)
+              antes de que llegaran a él. Puede ser un falso positivo: revisa la solicitud con
+              cuidado.
+            </p>
+          )}
+
           <section aria-labelledby="detalle-persona">
             <h3 id="detalle-persona">Solicitante</h3>
             <dl className="detalle__datos">
@@ -98,6 +112,12 @@ export function DetalleSolicitud({ solicitud, onCerrar }: Props) {
               <dd>
                 <time dateTime={solicitud.updatedAt}>{formatearFecha(solicitud.updatedAt)}</time>
               </dd>
+              {solicitud.intentosBloqueados > 0 && (
+                <>
+                  <dt>Intentos bloqueados</dt>
+                  <dd>{solicitud.intentosBloqueados}</dd>
+                </>
+              )}
               <dt>Identificador</dt>
               <dd className="detalle__id">{solicitud.id}</dd>
             </dl>

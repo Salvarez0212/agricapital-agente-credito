@@ -17,6 +17,8 @@ export interface Solicitud {
   montoSolicitado: number | null;
   /** La identidad no cuadra con el registro (teléfono o nombre distinto): un asesor debe validarla. */
   requiereVerificacion: boolean;
+  /** Mensajes que la guardia de seguridad bloqueó en la conversación (solo el número). */
+  intentosBloqueados: number;
   consentimientoDatosAt: string;
   createdAt: string;
   updatedAt: string;

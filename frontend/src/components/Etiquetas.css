@@ -27,3 +27,8 @@
   color: var(--alerta);
   background: var(--alerta-fondo);
 }
+
+.etiqueta--peligro {
+  color: var(--error);
+  background: var(--error-fondo);
+}
