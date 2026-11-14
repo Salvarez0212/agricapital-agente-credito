@@ -32,6 +32,17 @@ export function herramienta(name: string, input: object): MensajeLlm {
   );
 }
 
+/** El modelo se quedó sin tokens justo mientras pedía una herramienta. */
+export function cortadoEnHerramienta(name: string, input: object): MensajeLlm {
+  return mensaje(
+    [
+      { type: 'text', text: 'Voy a registrar', citations: null } as Bloque,
+      { type: 'tool_use', id: `toolu_${++contador}`, name, input } as unknown as Bloque,
+    ],
+    'max_tokens',
+  );
+}
+
 export function rechazo(): MensajeLlm {
   return mensaje([], 'refusal');
 }
@@ -45,6 +56,21 @@ export function validarHistorial(messages: ParametrosLlm['messages']) {
     const vacio =
       typeof m.content === 'string' ? m.content.trim() === '' : (m.content?.length ?? 0) === 0;
     if (vacio) throw new Error(`400 invalid_request_error: messages.${i} tiene contenido vacío`);
+
+    // Cada tool_use del asistente debe tener su tool_result en el mensaje siguiente.
+    if (m.role === 'assistant' && Array.isArray(m.content)) {
+      const siguiente = messages[i + 1]?.content;
+      const respondidos = new Set(
+        Array.isArray(siguiente)
+          ? siguiente.flatMap((b) => (b.type === 'tool_result' ? [b.tool_use_id] : []))
+          : [],
+      );
+      for (const b of m.content) {
+        if (b.type === 'tool_use' && !respondidos.has(b.id)) {
+          throw new Error(`400 invalid_request_error: tool_use ${b.id} sin tool_result`);
+        }
+      }
+    }
   });
 }
 

@@ -97,11 +97,22 @@ export function crearAgente(llm: ClienteLlm) {
     try {
       for (let i = 0; i < MAX_ITERACIONES; i++) {
         const mensaje = await llm.crearMensaje(parametros([...historial, ...nuevos]));
+        const cortadaEnHerramienta =
+          mensaje.stop_reason === 'max_tokens' &&
+          mensaje.content.some((b) => b.type === 'tool_use');
+
         // Se guarda el contenido completo (incluye bloques de thinking) sin modificarlo.
-        // Excepción: la API rechaza mensajes vacíos en el historial; un rechazo sin
-        // texto no se guarda, o la conversación quedaría bloqueada en cada turno.
-        if (mensaje.content.length > 0) {
+        // Excepciones, porque la API rechazaría el historial en el siguiente turno:
+        // - un rechazo sin texto (mensaje vacío);
+        // - una respuesta cortada a mitad de una herramienta (tool_use sin tool_result).
+        if (mensaje.content.length > 0 && !cortadaEnHerramienta) {
           nuevos.push({ role: 'assistant', content: mensaje.content });
+        }
+
+        if (cortadaEnHerramienta) {
+          logger.warn({ iteracion: i }, 'Respuesta cortada a mitad de una herramienta');
+          respuesta = RESPUESTAS.errorTecnico;
+          break;
         }
 
         logger.debug(

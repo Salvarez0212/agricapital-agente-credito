@@ -3,7 +3,13 @@ import { crearAgente, MAX_ITERACIONES, RESPUESTAS } from '../../src/agent/agent.
 import { SYSTEM_PROMPT } from '../../src/agent/prompts/system-prompt.js';
 import { prisma } from '../../src/lib/prisma.js';
 import { crearCliente, limpiarBd } from '../helpers/db.js';
-import { herramienta, LlmFalso, rechazo, texto } from '../helpers/llm-falso.js';
+import {
+  cortadoEnHerramienta,
+  herramienta,
+  LlmFalso,
+  rechazo,
+  texto,
+} from '../helpers/llm-falso.js';
 
 const TEL = '+573001112233';
 
@@ -335,6 +341,21 @@ describe('agente de crédito', () => {
       expect(salida.respuesta).toBe('Claro, te ayudo con tu crédito.');
       const conversacion = await prisma.conversacion.findFirstOrThrow();
       expect(conversacion.mensajes).not.toContainEqual({ role: 'assistant', content: [] });
+    });
+
+    it('si la respuesta se corta (max_tokens) a mitad de una herramienta, no rompe el historial', async () => {
+      llm.programar(cortadoEnHerramienta('registrar_consentimiento', { acepta: true }));
+      const cortada = await decir('sí, acepto');
+
+      expect(cortada.respuesta).toBe(RESPUESTAS.errorTecnico);
+
+      llm.programar(texto('Gracias, ¿me das tu cédula?'));
+      const siguiente = await decir('¿sigues ahí?');
+
+      expect(siguiente.respuesta).toBe('Gracias, ¿me das tu cédula?');
+      // La herramienta cortada no se ejecutó.
+      const conversacion = await prisma.conversacion.findFirstOrThrow();
+      expect(conversacion.consentimientoAt).toBeNull();
     });
 
     it(`corta el loop tras ${MAX_ITERACIONES} iteraciones de herramientas`, async () => {
