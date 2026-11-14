@@ -6,7 +6,7 @@
 /* eslint-disable jsx-a11y/no-redundant-roles, jsx-a11y/no-interactive-element-to-noninteractive-role */
 import type { Solicitud } from '../api/solicitudes';
 import { formatearCedula, formatearFecha, formatearTelefono } from '../lib/formato';
-import { EtiquetaTipo, EtiquetaVerificacion } from './Etiquetas';
+import { EtiquetaBloqueos, EtiquetaTipo, EtiquetaVerificacion } from './Etiquetas';
 import './TablaSolicitudes.css';
 
 interface Props {
@@ -66,6 +66,7 @@ export function TablaSolicitudes({ solicitudes, cargando, onSeleccionar }: Props
                   {s.nombreCompleto}
                 </button>
                 {s.requiereVerificacion && <EtiquetaVerificacion />}
+                {s.intentosBloqueados > 0 && <EtiquetaBloqueos cantidad={s.intentosBloqueados} />}
               </th>
               <td role="cell" data-label="Cédula" className="numerico">
                 {formatearCedula(s.cedula)}

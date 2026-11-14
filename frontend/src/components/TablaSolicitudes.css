@@ -65,7 +65,8 @@
   text-decoration: underline;
 }
 
-.tabla__abrir + .etiqueta {
+.tabla__abrir + .etiqueta,
+.tabla__nombre .etiqueta + .etiqueta {
   margin-left: var(--espacio-2);
 }
 
@@ -143,7 +144,8 @@
     font-size: 1.0625rem;
   }
 
-  .tabla__abrir + .etiqueta {
+  .tabla__abrir + .etiqueta,
+  .tabla__nombre .etiqueta + .etiqueta {
     margin-left: 0;
   }
 

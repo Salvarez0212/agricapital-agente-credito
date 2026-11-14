@@ -16,6 +16,7 @@ function solicitud(datos: Partial<Solicitud> = {}): Solicitud {
     canal: 'WHATSAPP',
     montoSolicitado: null,
     requiereVerificacion: false,
+    intentosBloqueados: 0,
     consentimientoDatosAt: '2026-11-14T15:00:00.000Z',
     createdAt: '2026-11-14T15:01:00.000Z',
     updatedAt: '2026-11-14T15:01:00.000Z',
@@ -145,6 +146,34 @@ describe('Panel de solicitudes', () => {
     await screen.findByRole('alert');
     expect(container.querySelector('.esqueleto')).not.toBeInTheDocument();
     expect(screen.queryByText('Cargando solicitudes…')).not.toBeInTheDocument();
+  });
+
+  it('marca las solicitudes con intentos bloqueados en la tabla y en el detalle', async () => {
+    const conBloqueos = solicitud({ ...ANA, intentosBloqueados: 1 });
+    simularApi(() => respuestaJson(pagina([conBloqueos, { ...CARLOS, intentosBloqueados: 3 }])));
+    render(<App />);
+
+    const tabla = await screen.findByRole('table');
+    const [, filaAna, filaCarlos] = within(tabla).getAllByRole('row');
+    expect(within(filaAna!).getByText('1 intento bloqueado')).toBeInTheDocument();
+    expect(within(filaCarlos!).getByText('3 intentos bloqueados')).toBeInTheDocument();
+
+    await userEvent.click(within(filaAna!).getByRole('button', { name: 'Ana María Restrepo' }));
+    const detalle = within(screen.getByRole('dialog', { name: 'Ana María Restrepo' }));
+    expect(detalle.getByRole('note')).toHaveTextContent(
+      /1 intento bloqueado\..*detuvo un mensaje que intentaba/,
+    );
+    expect(detalle.getByText('Intentos bloqueados').nextElementSibling).toHaveTextContent('1');
+  });
+
+  it('sin intentos bloqueados no muestra la marca ni el aviso', async () => {
+    simularApi(() => respuestaJson(pagina([ANA])));
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Ana María Restrepo' }));
+
+    expect(screen.queryByText(/intentos? bloqueados?$/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
   it('filtra por cédula mientras se escribe, con una sola petición al terminar', async () => {
