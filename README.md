@@ -91,21 +91,22 @@ npm run db:seed                     # 13 clientes ficticios y 5 solicitudes de e
 
 ### Variables de entorno (`backend/.env`)
 
-| Variable                            | Para qué                                                                   | Obligatoria        |
-| ----------------------------------- | -------------------------------------------------------------------------- | ------------------ |
-| `DATABASE_URL`                      | Conexión a Postgres (ya coincide con `docker-compose.yml`)                 | Sí                 |
-| `ANTHROPIC_API_KEY`                 | Agente y guardia de entrada                                                | Para el agente     |
-| `AGENT_MODEL` / `GUARD_MODEL`       | `claude-sonnet-5-5` / `claude-haiku-5-5` por defecto                       | No                 |
-| `CONVERSATION_TTL_MINUTES`          | Minutos de inactividad tras los que la conversación empieza de cero (30)   | No                 |
-| `DEMO_PHONE`                        | Tu número E.164: el seed crea un cliente preferencial y uno antiguo con él | No                 |
-| `META_*`                            | Canal de WhatsApp con la Cloud API de Meta ([guía](#meta-cloud-api))       | Para WhatsApp real |
-| `TWILIO_*`, `PUBLIC_BASE_URL`       | Canal de WhatsApp con Twilio ([guía](#twilio))                             | Para WhatsApp real |
-| `PORT`, `LOG_LEVEL`, `COMPANY_NAME` | Puerto (3000), nivel de logs, nombre con el que se presenta el agente      | No                 |
+| Variable                            | Para qué                                                                      | Obligatoria        |
+| ----------------------------------- | ----------------------------------------------------------------------------- | ------------------ |
+| `DATABASE_URL`                      | Conexión a Postgres (ya coincide con `docker-compose.yml`)                    | Sí                 |
+| `ANTHROPIC_API_KEY`                 | Agente y guardia de entrada                                                   | Para el agente     |
+| `AGENT_MODEL` / `GUARD_MODEL`       | `claude-sonnet-5-5` / `claude-haiku-5-5` por defecto                          | No                 |
+| `CONVERSATION_TTL_MINUTES`          | Minutos de inactividad tras los que la conversación empieza de cero (30)      | No                 |
+| `DEMO_PHONE`                        | Tu número E.164: el seed crea un cliente preferencial y uno antiguo con él    | No                 |
+| `META_*`                            | Canal de WhatsApp con la Cloud API de Meta ([guía](#meta-cloud-api))          | Para WhatsApp real |
+| `TWILIO_*`, `PUBLIC_BASE_URL`       | Canal de WhatsApp con Twilio ([guía](#twilio))                                | Para WhatsApp real |
+| `PORT`, `LOG_LEVEL`, `COMPANY_NAME` | Puerto (3000), nivel de logs, nombre con el que se presenta el agente         | No                 |
+| `HOST`                              | Interfaz en la que escucha la API. Por defecto `127.0.0.1`: solo esta máquina | No                 |
 
 ## Ejecutar
 
 ```bash
-npm run dev:api     # API en http://localhost:3000 (recarga al guardar)
+npm run dev:api     # API en http://127.0.0.1:3000 (recarga al guardar)
 npm run dev:web     # Panel en http://localhost:5173 (reenvía /api al backend)
 ```
 
@@ -176,7 +177,7 @@ Además, **toda solicitud nace `EN_REVISION`**: la API rechaza un body que inten
 
 ## API REST
 
-Base: `http://localhost:3000`. Todas las respuestas de error tienen el formato `{ "error": { "code", "message", "details?" } }`. En validación, `details` lista `{ campo, mensaje }`.
+Base: `http://127.0.0.1:3000`. Todas las respuestas de error tienen el formato `{ "error": { "code", "message", "details?" } }`. En validación, `details` lista `{ campo, mensaje }`.
 
 | Método       | Ruta                                                 | Respuestas                                                                       |
 | ------------ | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -191,8 +192,8 @@ Base: `http://localhost:3000`. Todas las respuestas de error tienen el formato `
 | `POST`       | `/webhooks/whatsapp`                                 | Mensajes de Twilio (firma) · 403 · 503 sin configurar                            |
 
 ```bash
-curl -s localhost:3000/api/clientes/1010101010
-curl -s "localhost:3000/api/solicitudes?cedula=1010&page=1&pageSize=20"
+curl -s 127.0.0.1:3000/api/clientes/1010101010
+curl -s "127.0.0.1:3000/api/solicitudes?cedula=1010&page=1&pageSize=20"
 ```
 
 La validación **normaliza** lo que la gente escribe: `1.010.101.010` → `1010101010`, y `300 123 4567` o `+57 300…` → `+573001234567`. El nombre exige al menos nombre y apellido. El 409 está protegido contra condiciones de carrera con un _advisory lock_ de Postgres por cédula: hay un test con 5 peticiones simultáneas.
@@ -210,7 +211,7 @@ La validación **normaliza** lo que la gente escribe: `1.010.101.010` → `10101
 
 ## WhatsApp real (Meta y Twilio)
 
-El backend tiene dos canales que comparten el mismo procesador. Los dos necesitan una URL pública hacia `localhost:3000`, por ejemplo con `cloudflared tunnel --url http://localhost:3000`, cuya URL cambia en cada reinicio.
+El backend tiene dos canales que comparten el mismo procesador. Los dos necesitan una URL pública hacia `127.0.0.1:3000`, por ejemplo con `cloudflared tunnel --url http://127.0.0.1:3000`, cuya URL cambia en cada reinicio.
 
 ### Meta Cloud API
 
@@ -244,6 +245,7 @@ El backend tiene dos canales que comparten el mismo procesador. Los dos necesita
 
 - **El tipo de cliente no se guarda en `clientes`**: se deriva del cupo, así nunca queda desincronizado. La solicitud sí guarda el tipo como foto del momento.
 - **Una solicitud en revisión por cédula _y_ teléfono.** Desde otro teléfono se puede radicar, y entonces todas las solicitudes en revisión de esa cédula quedan para verificar. Así un impostor no le quita el lugar al titular, y el 409 nunca revela solicitudes de otra persona.
+- **Solo accesible desde esta máquina:** la API escucha en `127.0.0.1` (configurable con `HOST`) y Docker publica Postgres solo en `127.0.0.1`. Sin esto, cualquiera en la misma red (p. ej. una Wi-Fi compartida) podría consultar la API, que no tiene login, o conectarse a la base de datos con las credenciales de desarrollo.
 - **Webhooks antes de `express.json`:** la firma de Meta se calcula sobre los bytes exactos del cuerpo.
 - **Responder 200 de inmediato** a los webhooks y procesar en segundo plano: Meta y Twilio reintentan si la respuesta tarda.
 - **oxlint en vez de ESLint:** es el linter de la plantilla de Vite, mucho más rápido, y evita problemas de compatibilidad con TypeScript 7.
