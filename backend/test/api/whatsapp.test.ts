@@ -18,9 +18,9 @@ const URL_WEBHOOK = `${URL_PUBLICA}/webhooks/whatsapp`;
 class EnviadorFalso implements EnviadorWhatsApp {
   enviados: Array<{ destino: string; texto: string }> = [];
   fallar = false;
-  async enviar(destino: string, texto: string) {
+  async enviar(destino: string, mensaje: string) {
     if (this.fallar) throw new Error('Twilio caído');
-    this.enviados.push({ destino, texto });
+    this.enviados.push({ destino, texto: mensaje });
   }
 }
 

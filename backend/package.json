@@ -18,7 +18,8 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force && prisma db seed",
     "db:studio": "prisma studio",
-    "chat": "tsx --env-file-if-exists=.env scripts/chat.ts"
+    "chat": "tsx --env-file-if-exists=.env scripts/chat.ts",
+    "eval:guardia": "tsx --env-file-if-exists=.env scripts/eval-guardia.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
