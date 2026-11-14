@@ -12,6 +12,10 @@ import './App.css';
 /** Tiempo sin teclear antes de consultar: filtra "en vivo" sin una petición por tecla. */
 export const ESPERA_FILTRO_MS = 300;
 const POR_PAGINA = 20;
+/** La API rechaza filtros de más de 13 dígitos; ninguna cédula ni celular los tiene. */
+export const MAX_DIGITOS_FILTRO = 13;
+
+const paraFiltrar = (texto: string) => soloDigitos(texto).slice(0, MAX_DIGITOS_FILTRO);
 
 /** "1 solicitud coincide…" / "3 solicitudes coinciden…": sustantivo y verbo concuerdan. */
 function resumen(total: number, hayFiltros: boolean): string {
@@ -24,35 +28,41 @@ function resumen(total: number, hayFiltros: boolean): string {
 function App() {
   const [cedula, setCedula] = useState('');
   const [telefono, setTelefono] = useState('');
-  const [pagina, setPagina] = useState(1);
+  const [paginaElegida, setPaginaElegida] = useState({ filtro: '', pagina: 1 });
   const [version, setVersion] = useState(0);
   const [seleccionada, setSeleccionada] = useState<Solicitud | null>(null);
 
   // Se esperan los textos (primitivos), no un objeto: un objeto nuevo en cada render
   // reiniciaría la espera sin fin.
   const filtro = {
-    cedula: useDebouncedValue(soloDigitos(cedula), ESPERA_FILTRO_MS),
-    telefono: useDebouncedValue(soloDigitos(telefono), ESPERA_FILTRO_MS),
+    cedula: useDebouncedValue(paraFiltrar(cedula), ESPERA_FILTRO_MS),
+    telefono: useDebouncedValue(paraFiltrar(telefono), ESPERA_FILTRO_MS),
   };
+
+  // La página elegida vale solo para el filtro con el que se eligió: un filtro nuevo empieza
+  // en la página 1. Se cambia cuando el filtro ya se aplicó (tras la espera), no con cada
+  // tecla; si no, se pediría la página 1 con el filtro viejo antes de la búsqueda real.
+  const claveFiltro = `${filtro.cedula}|${filtro.telefono}`;
+  const pagina = paginaElegida.filtro === claveFiltro ? paginaElegida.pagina : 1;
+  const setPagina = (nueva: number) => setPaginaElegida({ filtro: claveFiltro, pagina: nueva });
+
   const {
     pagina: resultado,
     cargando,
     error,
   } = useSolicitudes({ ...filtro, page: pagina, pageSize: POR_PAGINA }, version);
 
-  // Un filtro nuevo siempre empieza en la primera página.
-  const cambiarCedula = (valor: string) => {
-    setCedula(valor);
-    setPagina(1);
-  };
-  const cambiarTelefono = (valor: string) => {
-    setTelefono(valor);
-    setPagina(1);
-  };
+  // Si la lista se acortó (p. ej. al "Actualizar" estando en la última página), la página
+  // actual puede quedar vacía: se salta a la última que existe. Se ajusta durante el render,
+  // como recomienda React para estado derivado de props/datos, y solo con datos vigentes.
+  const ultimaPagina = Math.max(resultado?.meta.totalPages ?? 1, 1);
+  if (resultado && !cargando && !error && pagina > ultimaPagina) {
+    setPagina(ultimaPagina);
+  }
+
   const limpiar = () => {
     setCedula('');
     setTelefono('');
-    setPagina(1);
   };
 
   const solicitudes = resultado?.data ?? [];
@@ -87,8 +97,8 @@ function App() {
         <Filtros
           cedula={cedula}
           telefono={telefono}
-          onCedula={cambiarCedula}
-          onTelefono={cambiarTelefono}
+          onCedula={setCedula}
+          onTelefono={setTelefono}
           onLimpiar={limpiar}
         />
 
@@ -127,11 +137,7 @@ function App() {
               cargando={cargando}
               onSeleccionar={setSeleccionada}
             />
-            <Paginacion
-              pagina={pagina}
-              totalPaginas={resultado?.meta.totalPages ?? 1}
-              onCambiar={setPagina}
-            />
+            <Paginacion pagina={pagina} totalPaginas={ultimaPagina} onCambiar={setPagina} />
           </>
         )}
       </main>

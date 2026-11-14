@@ -36,7 +36,11 @@ export function useSolicitudes(filtro: FiltroSolicitudes, version: number): Esta
   useEffect(() => {
     const control = new AbortController();
     listarSolicitudes({ cedula, telefono, page, pageSize }, control.signal)
-      .then((pagina) => setRespuesta({ clave, pagina, error: null }))
+      .then((pagina) => {
+        // Si la petición ya se descartó, su respuesta no debe pisar la de la búsqueda actual.
+        if (control.signal.aborted) return;
+        setRespuesta({ clave, pagina, error: null });
+      })
       .catch((err: unknown) => {
         if (control.signal.aborted) return;
         // Un fallo de red llega como TypeError en inglés ("Failed to fetch"): se traduce.

@@ -13,6 +13,7 @@
   --resaltado: #eef4fd;
   --primario: #1f6f43;
   --primario-hover: #185a36;
+  --sobre-primario: #ffffff;
   --foco: #1d5fbf;
   --alerta: #8a4b00;
   --alerta-fondo: #fff4e0;
@@ -62,6 +63,8 @@
     --resaltado: #1c2a3b;
     --primario: #3fa36b;
     --primario-hover: #4cb87b;
+    /* Texto oscuro sobre el verde claro: el blanco daba ~3:1 (no cumple AA); así supera 6:1. */
+    --sobre-primario: #0f141a;
     --foco: #7fb0ff;
     --alerta: #ffc46b;
     --alerta-fondo: #3a2a10;
@@ -122,7 +125,7 @@ body {
   padding: var(--espacio-2) var(--espacio-4);
   font: inherit;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--sobre-primario);
   background: var(--primario);
   border: 1px solid transparent;
   border-radius: var(--radio-sm);

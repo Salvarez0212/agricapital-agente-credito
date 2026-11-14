@@ -24,6 +24,7 @@ export function Filtros({ cedula, telefono, onCedula, onTelefono, onLimpiar }: P
             type="search"
             inputMode="numeric"
             autoComplete="off"
+            maxLength={20}
             placeholder="Ej. 1010101010"
             value={cedula}
             onChange={(e) => onCedula(e.target.value)}
@@ -36,6 +37,7 @@ export function Filtros({ cedula, telefono, onCedula, onTelefono, onLimpiar }: P
             type="search"
             inputMode="tel"
             autoComplete="off"
+            maxLength={20}
             placeholder="Ej. 300 123 4567"
             value={telefono}
             onChange={(e) => onTelefono(e.target.value)}

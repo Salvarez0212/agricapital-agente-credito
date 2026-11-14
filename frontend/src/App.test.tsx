@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PaginaSolicitudes, Solicitud } from './api/solicitudes';
@@ -51,7 +51,7 @@ function respuestaJson(cuerpo: unknown, status = 200) {
 }
 
 /** Simula la API: `responder` decide la respuesta según los parámetros de la URL. */
-function simularApi(responder: (params: URLSearchParams) => Response) {
+function simularApi(responder: (params: URLSearchParams) => Response | Promise<Response>) {
   const fetchFalso = vi.fn(async (url: string | URL | Request) => {
     const params = new URL(String(url), 'http://panel.local').searchParams;
     return responder(params);
@@ -231,5 +231,86 @@ describe('Panel de solicitudes', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Actualizar' }));
 
     await waitFor(() => expect(peticiones().length).toBe(antes + 1));
+  });
+  it('si la página actual queda vacía al actualizar, salta a la última que existe', async () => {
+    let total = 21;
+    const peticiones = simularApi((p) => {
+      const paginas = Math.ceil(total / 20);
+      const enPagina = Number(p.get('page'));
+      const datos = enPagina > paginas ? [] : enPagina === 2 ? [CARLOS] : [ANA];
+      return respuestaJson(pagina(datos, { page: enPagina, total, totalPages: paginas }));
+    });
+    render(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Siguiente' }));
+    await screen.findByText('Página 2 de 2');
+
+    total = 1; // Mientras tanto, la lista se acortó a una sola página.
+    await userEvent.click(screen.getByRole('button', { name: 'Actualizar' }));
+
+    expect(await screen.findByText('Ana María Restrepo')).toBeInTheDocument();
+    expect(screen.queryByText(/Todavía no hay solicitudes/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Paginación' })).not.toBeInTheDocument();
+    expect(peticiones().at(-1)?.get('page')).toBe('1');
+  });
+
+  it('al filtrar desde otra página no pide la página 1 con el filtro anterior', async () => {
+    const peticiones = simularApi((p) =>
+      respuestaJson(
+        pagina([ANA], {
+          page: Number(p.get('page')),
+          total: p.get('cedula') ? 1 : 21,
+          totalPages: p.get('cedula') ? 1 : 2,
+        }),
+      ),
+    );
+    render(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Siguiente' }));
+    await screen.findByText('Página 2 de 2');
+    const antes = peticiones().length;
+
+    await userEvent.type(screen.getByLabelText('Cédula'), '1010');
+
+    await screen.findByText('1 solicitud coincide con la búsqueda');
+    const despues = peticiones().slice(antes);
+    expect(despues.map((p) => [p.get('cedula'), p.get('page')])).toEqual([['1010', '1']]);
+  });
+
+  it('una respuesta lenta de una búsqueda anterior no pisa la búsqueda actual', async () => {
+    let soltarLenta: (() => void) | undefined;
+    const peticiones = simularApi((p) => {
+      if (p.get('cedula') === '7') {
+        // Esta búsqueda responde tarde, cuando la persona ya escribió otra cosa.
+        return new Promise<Response>((resolver) => {
+          soltarLenta = () => resolver(respuestaJson(pagina([CARLOS])));
+        });
+      }
+      return respuestaJson(pagina(p.get('cedula') ? [ANA] : [ANA, CARLOS]));
+    });
+    render(<App />);
+    await screen.findByText('2 solicitudes');
+
+    const cedula = screen.getByLabelText('Cédula');
+    await userEvent.type(cedula, '7');
+    await waitFor(() => expect(peticiones().at(-1)?.get('cedula')).toBe('7'));
+    await userEvent.clear(cedula);
+    await userEvent.type(cedula, '1010');
+    await screen.findByText('1 solicitud coincide con la búsqueda');
+
+    await act(async () => soltarLenta?.());
+
+    expect(screen.getByText('Ana María Restrepo')).toBeInTheDocument();
+    expect(screen.queryByText('Carlos Pérez Gómez')).not.toBeInTheDocument();
+    expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'false');
+  });
+
+  it('ignora los dígitos de más en vez de mostrar un error de la API', async () => {
+    const peticiones = simularApi(() => respuestaJson(pagina([CARLOS])));
+    render(<App />);
+    await screen.findByRole('table');
+
+    await userEvent.type(screen.getByLabelText('Teléfono'), '573109998877123456');
+
+    await waitFor(() => expect(peticiones().at(-1)?.get('telefono')).toBe('5731099988771'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
