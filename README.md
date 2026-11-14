@@ -140,8 +140,8 @@ npm run db:up                                        # los tests del backend usa
 npm run format:check && npm run lint && npm run typecheck && npm test
 ```
 
-- **Backend (220 tests):** unitarios (clasificación, normalización, nombres, guardia, filtro de salida), seguridad HTTP (cabeceras y límite de peticiones) e integración con Supertest contra una **base de datos aparte** (`agricapital_test`), que `globalSetup` crea y migra sola. El agente se prueba con un **LLM falso de respuestas programadas**: sin costo, sin red y determinista, y valida las mismas reglas de historial que la API real.
-- **Frontend (28 tests):** el panel completo con la API simulada (carga, filtros, detalle, errores, paginación, respuestas tardías, móvil) y el selector de tema.
+- **Backend (223 tests):** unitarios (clasificación, normalización, nombres, guardia, filtro de salida), seguridad HTTP (cabeceras y límite de peticiones) e integración con Supertest contra una **base de datos aparte** (`agricapital_test`), que `globalSetup` crea y migra sola. El agente se prueba con un **LLM falso de respuestas programadas**: sin costo, sin red y determinista, y valida las mismas reglas de historial que la API real.
+- **Frontend (31 tests):** el panel completo con la API simulada (carga, filtros, detalle, errores, paginación, respuestas tardías, móvil) y el selector de tema.
 - **`npm run eval:guardia -w backend`:** evalúa el clasificador de prompt injection **contra el modelo real** con 12 mensajes legítimos y 12 ataques. Usa la API key.
 - **`npm run test:hooks`:** tests del hook de revisión IA con un `claude` falso.
 
@@ -239,6 +239,7 @@ La validación **normaliza** lo que la gente escribe: `1.010.101.010` → `10101
 
 - **Filtro en tiempo real** por cédula y teléfono. Consulta 300 ms después de la última tecla, acepta puntos, espacios y `+57`, y la búsqueda es parcial. Una búsqueda vieja que responde tarde se descarta y nunca reemplaza la actual.
 - **Detalle en un `<dialog>` nativo** al hacer clic en una fila (o con el botón del nombre, desde el teclado), con todos los datos y un aviso cuando hay que verificar la identidad.
+- **Marcas de riesgo** en la tabla y el detalle: **"Verificar identidad"** (la cédula existe pero el teléfono o el nombre no coinciden con el registro) e **"N intentos bloqueados"** (la guardia de entrada detuvo mensajes en la conversación que radicó la solicitud: pedirle sus instrucciones, datos de otras personas…). La API expone solo el número (`intentosBloqueados`), nunca el texto bloqueado; la auditoría con el texto, de acceso restringido, es el issue #10.
 - Estados de **carga, vacío** (distinto con y sin filtros) y **error con "Reintentar"**; paginación; botón **Actualizar**.
 - **Móvil:** por debajo de 640 px cada fila se convierte en una tarjeta con el título de cada dato.
 - **Tema:** Sistema, Claro u Oscuro. Se recuerda en el navegador y no parpadea al recargar.
