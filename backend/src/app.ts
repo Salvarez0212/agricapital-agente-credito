@@ -7,6 +7,7 @@ import {
   cabecerasSeguridad,
   limitarPeticiones,
   LIMITES_POR_DEFECTO,
+  soloAccesoLocal,
   type LimitesPeticiones,
 } from './middlewares/seguridad.js';
 import { healthRouter } from './routes/health.routes.js';
@@ -26,10 +27,18 @@ export interface OpcionesApp {
   meta?: OpcionesMeta;
   /** Límites de peticiones por IP (los tests los bajan para probar el 429). */
   limites?: Partial<LimitesPeticiones>;
+  /** Servir /api también a peticiones reenviadas por un proxy (server.ts lo lee de API_ACCESO_REMOTO). */
+  apiAccesoRemoto?: boolean;
 }
 
 /** Construye la app de Express (separado de server.ts para poder testearla). */
-export function createApp({ agente, whatsapp, meta, limites }: OpcionesApp = {}) {
+export function createApp({
+  agente,
+  whatsapp,
+  meta,
+  limites,
+  apiAccesoRemoto = false,
+}: OpcionesApp = {}) {
   const app = express();
   const limite = { ...LIMITES_POR_DEFECTO, ...limites };
 
@@ -65,6 +74,8 @@ export function createApp({ agente, whatsapp, meta, limites }: OpcionesApp = {})
   app.use('/health', healthRouter);
   app.use(
     '/api',
+    // Primero el bloqueo: lo que llega por el túnel ni siquiera consume el límite.
+    soloAccesoLocal(apiAccesoRemoto),
     limitarPeticiones(limite.api, limite.ventanaMs),
     crearApiRouter({
       obtenerAgente,

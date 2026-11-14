@@ -1,4 +1,4 @@
-import type { Request } from 'express';
+import type { Request, RequestHandler } from 'express';
 import { rateLimit, type RateLimitInfo } from 'express-rate-limit';
 import helmet from 'helmet';
 import { AppError } from '../lib/app-error.js';
@@ -55,4 +55,39 @@ export function limitarPeticiones(maximo: number, ventanaMs: number) {
       );
     },
   });
+}
+
+/** Cabeceras que agrega un proxy o túnel (cloudflared, un balanceador) al reenviar. */
+const CABECERAS_DE_PROXY = ['x-forwarded-for', 'cf-connecting-ip', 'forwarded', 'x-real-ip'];
+
+/**
+ * La API REST solo atiende peticiones directas desde esta máquina (el panel en
+ * desarrollo, curl, el chat de terminal). Lo que llega reenviado por un proxy o túnel se
+ * rechaza con 403.
+ *
+ * Por qué: el túnel de WhatsApp (`cloudflared --url`) reenvía TODO el puerto, no solo
+ * /webhooks. Sin esto, quien conociera la URL del túnel podría leer las solicitudes (la
+ * API no tiene login) o gastar tokens con el simulador. El proxy de Vite no agrega estas
+ * cabeceras, así que el panel sigue funcionando.
+ *
+ * Es una defensa pensada para cloudflared (siempre agrega Cf-Connecting-Ip y
+ * X-Forwarded-For, y quien está fuera no puede quitarlas). Un proxy que no agregue
+ * ninguna de estas cabeceras pasaría: no sustituye a la autenticación.
+ *
+ * `permitirRemoto` lo desactiva para un despliegue en el que la API sí deba servirse
+ * detrás de un proxy (con autenticación delante): API_ACCESO_REMOTO=true.
+ */
+export function soloAccesoLocal(permitirRemoto: boolean): RequestHandler {
+  return (req, _res, next) => {
+    if (permitirRemoto) return next();
+    const reenviada = CABECERAS_DE_PROXY.some((cabecera) => req.headers[cabecera] !== undefined);
+    if (!reenviada) return next();
+    next(
+      new AppError(
+        403,
+        'ACCESO_SOLO_LOCAL',
+        'La API solo está disponible desde la red interna del equipo.',
+      ),
+    );
+  };
 }

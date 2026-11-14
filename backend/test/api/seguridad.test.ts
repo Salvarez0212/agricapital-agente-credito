@@ -34,8 +34,9 @@ describe('Seguridad HTTP', () => {
     expect(res.headers['ratelimit']).toBeDefined();
   });
 
-  it('cuenta por separado a cada cliente que llega por el túnel (X-Forwarded-For)', async () => {
-    const app = createApp({ limites: { api: 1 } });
+  it('cuenta por separado a cada cliente que llega por un proxy (X-Forwarded-For)', async () => {
+    // Con la API abierta a propósito detrás de un proxy (API_ACCESO_REMOTO=true).
+    const app = createApp({ limites: { api: 1 }, apiAccesoRemoto: true });
     const desde = (ip: string) =>
       request(app).get('/api/clientes/1010101010').set('X-Forwarded-For', ip);
 
@@ -62,5 +63,70 @@ describe('Seguridad HTTP', () => {
     for (let i = 0; i < 3; i++) {
       expect((await request(app).get('/health')).status).toBe(200);
     }
+  });
+});
+
+describe('API solo desde esta máquina', () => {
+  // cloudflared envía estas cabeceras al reenviar una petición de internet.
+  const porElTunel = { 'X-Forwarded-For': '203.0.113.7', 'Cf-Connecting-Ip': '203.0.113.7' };
+
+  it('rechaza con 403 lo que llega por el túnel, sin revelar datos', async () => {
+    const res = await request(createApp()).get('/api/solicitudes').set(porElTunel);
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({
+      error: {
+        code: 'ACCESO_SOLO_LOCAL',
+        message: 'La API solo está disponible desde la red interna del equipo.',
+      },
+    });
+  });
+
+  it.each(['X-Forwarded-For', 'Cf-Connecting-Ip', 'Forwarded', 'X-Real-Ip'])(
+    'detecta el reenvío por la cabecera %s',
+    async (cabecera) => {
+      const res = await request(createApp())
+        .get('/api/clientes/1010101010')
+        .set(cabecera, cabecera === 'Forwarded' ? 'for=203.0.113.7' : '203.0.113.7');
+
+      expect(res.status).toBe(403);
+    },
+  );
+
+  it('una cabecera de reenvío vacía también cuenta como reenviada', async () => {
+    const res = await request(createApp()).get('/api/solicitudes').set('X-Forwarded-For', '');
+
+    expect(res.status).toBe(403);
+  });
+
+  it('también protege el simulador del chat (gasta tokens del modelo)', async () => {
+    const res = await request(createApp())
+      .post('/api/chat/simulate')
+      .set(porElTunel)
+      .send({ telefono: '+573001112233', mensaje: 'Hola' });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('atiende las peticiones directas, como las del panel y curl', async () => {
+    const res = await request(createApp()).get('/api/solicitudes');
+
+    expect(res.status).toBe(200);
+  });
+
+  it('el túnel sigue llegando a los webhooks y a /health', async () => {
+    const app = createApp();
+
+    expect((await request(app).get('/health').set(porElTunel)).status).toBe(200);
+    // Sin credenciales de Meta el canal responde 503: llegó al webhook, no lo bloqueó.
+    expect((await request(app).post('/webhooks/meta').set(porElTunel).send({})).status).toBe(503);
+  });
+
+  it('API_ACCESO_REMOTO=true la abre a propósito detrás de un proxy', async () => {
+    const res = await request(createApp({ apiAccesoRemoto: true }))
+      .get('/api/solicitudes')
+      .set(porElTunel);
+
+    expect(res.status).toBe(200);
   });
 });
